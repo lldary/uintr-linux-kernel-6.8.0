@@ -9,6 +9,7 @@ struct task_struct;
 struct mm_struct;
 struct io_bitmap;
 struct vm86;
+struct uintr_receiver;
 
 #include <asm/math_emu.h>
 #include <asm/segment.h>
