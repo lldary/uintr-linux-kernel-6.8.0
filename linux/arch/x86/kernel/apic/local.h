@@ -24,6 +24,9 @@ void x2apic_send_IPI_allbutself(int vector);
 void x2apic_send_IPI_self(int vector);
 extern u32 x2apic_max_apicid;
 
+/* UINTR */
+void default_send_UINTR_single_phys(u32 ndst, int vector);
+
 /* IPI */
 
 DECLARE_STATIC_KEY_FALSE(apic_use_ipi_shorthand);

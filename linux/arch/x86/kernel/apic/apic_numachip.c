@@ -242,6 +242,8 @@ static const struct apic apic_numachip1 __refconst = {
 	.send_IPI_all			= numachip_send_IPI_all,
 	.send_IPI_self			= numachip_send_IPI_self,
 
+	.send_UINTR			= NULL,
+
 	.wakeup_secondary_cpu		= numachip_wakeup_secondary,
 
 	.read				= native_apic_mem_read,
@@ -277,6 +279,8 @@ static const struct apic apic_numachip2 __refconst = {
 	.send_IPI_allbutself		= numachip_send_IPI_allbutself,
 	.send_IPI_all			= numachip_send_IPI_all,
 	.send_IPI_self			= numachip_send_IPI_self,
+
+	.send_UINTR			= NULL,
 
 	.wakeup_secondary_cpu		= numachip_wakeup_secondary,
 

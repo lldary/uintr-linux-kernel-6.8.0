@@ -102,6 +102,8 @@ static struct apic apic_bigsmp __ro_after_init = {
 	.send_IPI_all			= bigsmp_send_IPI_all,
 	.send_IPI_self			= default_send_IPI_self,
 
+	.send_UINTR			= NULL,
+
 	.read				= native_apic_mem_read,
 	.write				= native_apic_mem_write,
 	.eoi				= native_apic_mem_eoi,
