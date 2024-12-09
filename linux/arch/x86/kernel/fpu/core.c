@@ -594,6 +594,7 @@ int fpu_clone(struct task_struct *dst, unsigned long clone_flags, bool minimal,
 {
 	struct fpu *src_fpu = &current->thread.fpu;
 	struct fpu *dst_fpu = &dst->thread.fpu;
+	struct uintr_state *uintr_state;
 
 	/* The new task's FPU state cannot be valid in the hardware. */
 	dst_fpu->last_cpu = -1;
@@ -639,6 +640,20 @@ int fpu_clone(struct task_struct *dst, unsigned long clone_flags, bool minimal,
 	if (test_thread_flag(TIF_NEED_FPU_LOAD))
 		fpregs_restore_userregs();
 	save_fpregs_to_fpstate(dst_fpu);
+	
+	/*
+	 * All of UINTR state is not expected to be inherited. The UPID related
+	 * structs are task specific. The UITT is same across a clone() but it
+	 * would be fixed up upon first execution of SENDUIPI.
+	 *
+	 * Check if the xsave header needs to be set to init value (like PASID)
+	 */
+	if (cpu_feature_enabled(X86_FEATURE_UINTR)) {
+		uintr_state = get_xsave_addr(&dst_fpu->fpstate->regs.xsave, XFEATURE_UINTR);
+		if (uintr_state)
+			memset(uintr_state, 0, sizeof(*uintr_state));
+	}
+	
 	fpregs_unlock();
 	if (!(clone_flags & CLONE_THREAD))
 		fpu_inherit_perms(dst_fpu);
