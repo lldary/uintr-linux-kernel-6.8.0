@@ -53,7 +53,7 @@ static const char *xfeature_names[] =
 	"Control-flow User registers",
 	"Control-flow Kernel registers (unused)",
 	"unknown xstate feature",
-	"unknown xstate feature",
+	"User Interrupts registers",
 	"unknown xstate feature",
 	"unknown xstate feature",
 	"AMX Tile config",
@@ -76,6 +76,7 @@ static unsigned short xsave_cpuid_features[] __initdata = {
 	[XFEATURE_CET_USER]			= X86_FEATURE_SHSTK,
 	[XFEATURE_XTILE_CFG]			= X86_FEATURE_AMX_TILE,
 	[XFEATURE_XTILE_DATA]			= X86_FEATURE_AMX_TILE,
+	[XFEATURE_UINTR]			= X86_FEATURE_UINTR,
 };
 
 static unsigned int xstate_offsets[XFEATURE_MAX] __ro_after_init =
@@ -280,6 +281,7 @@ static void __init print_xstate_features(void)
 	print_xstate_feature(XFEATURE_MASK_CET_USER);
 	print_xstate_feature(XFEATURE_MASK_XTILE_CFG);
 	print_xstate_feature(XFEATURE_MASK_XTILE_DATA);
+	print_xstate_feature(XFEATURE_MASK_UINTR);
 }
 
 /*
@@ -347,7 +349,8 @@ static __init void os_xrstor_booting(struct xregs_state *xstate)
 	 XFEATURE_MASK_BNDCSR |			\
 	 XFEATURE_MASK_PASID |			\
 	 XFEATURE_MASK_CET_USER |		\
-	 XFEATURE_MASK_XTILE)
+	 XFEATURE_MASK_XTILE |			\
+	 XFEATURE_MASK_UINTR)
 
 /*
  * setup the xstate image representing the init state
@@ -547,6 +550,7 @@ static bool __init check_xstate_against_struct(int nr)
 	case XFEATURE_PASID:	  return XCHECK_SZ(sz, nr, struct ia32_pasid_state);
 	case XFEATURE_XTILE_CFG:  return XCHECK_SZ(sz, nr, struct xtile_cfg);
 	case XFEATURE_CET_USER:	  return XCHECK_SZ(sz, nr, struct cet_user_state);
+	case XFEATURE_UINTR:	  return XCHECK_SZ(sz, nr, struct uintr_state);
 	case XFEATURE_XTILE_DATA: check_xtile_data_against_struct(sz); return true;
 	default:
 		XSTATE_WARN_ON(1, "No structure for xstate: %d\n", nr);
@@ -1840,6 +1844,18 @@ int proc_pid_arch_status(struct seq_file *m, struct pid_namespace *ns,
 static u64 *__get_xsave_member(void *xstate, u32 msr)
 {
 	switch (msr) {
+	case MSR_IA32_UINTR_RR:
+		return &((struct uintr_state *)xstate)->uirr;
+	case MSR_IA32_UINTR_HANDLER:
+		return &((struct uintr_state *)xstate)->handler;
+	case MSR_IA32_UINTR_STACKADJUST:
+		return &((struct uintr_state *)xstate)->stack_adjust;
+	case MSR_IA32_UINTR_MISC:
+		return (u64 *)&((struct uintr_state *)xstate)->misc;
+	case MSR_IA32_UINTR_PD:
+		return &((struct uintr_state *)xstate)->upid_addr;
+	case MSR_IA32_UINTR_TT:
+		return &((struct uintr_state *)xstate)->uitt_addr;
 	default:
 		WARN_ONCE(1, "x86/fpu: unsupported xstate msr (%u)\n", msr);
 		return NULL;

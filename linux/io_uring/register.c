@@ -18,6 +18,8 @@
 #include <linux/io_uring.h>
 #include <linux/io_uring_types.h>
 
+#include "io_uring_uintr_internel.h"
+
 #include "io_uring.h"
 #include "opdef.h"
 #include "tctx.h"
