@@ -466,3 +466,13 @@
 459	i386	lsm_get_self_attr	sys_lsm_get_self_attr
 460	i386	lsm_set_self_attr	sys_lsm_set_self_attr
 461	i386	lsm_list_modules	sys_lsm_list_modules
+# Start UINTR syscalls at 471 to avoid upstream merge conflicts during development
+471	i386	uintr_register_handler	sys_uintr_register_handler
+472	i386	uintr_unregister_handler sys_uintr_unregister_handler
+473	i386	uintr_vector_fd		sys_uintr_vector_fd
+474	i386	uintr_register_sender	sys_uintr_register_sender
+475	i386	uintr_unregister_sender	sys_uintr_unregister_sender
+476	i386	uintr_wait		sys_uintr_wait
+477	i386	uintr_register_self	sys_uintr_register_self
+488	i386	uintr_alt_stack		sys_uintr_alt_stack
+489	i386	uintr_ipi_fd		sys_uintr_ipi_fd
