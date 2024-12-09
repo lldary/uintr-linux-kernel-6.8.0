@@ -138,6 +138,8 @@
 #define X86_CR4_CET		_BITUL(X86_CR4_CET_BIT)
 #define X86_CR4_LAM_SUP_BIT	28 /* LAM for supervisor pointers */
 #define X86_CR4_LAM_SUP		_BITUL(X86_CR4_LAM_SUP_BIT)
+#define X86_CR4_UINTR_BIT	25 /* enable User Interrupts support */
+#define X86_CR4_UINTR		_BITUL(X86_CR4_UINTR_BIT)
 
 /*
  * x86-64 Task Priority Register, CR8

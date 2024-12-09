@@ -3831,6 +3831,8 @@
 
 	nofsgsbase	[X86] Disables FSGSBASE instructions.
 
+	nouintr		[X86-64] Disables User Interrupts support.
+
 	nofxsr		[BUGS=X86-32] Disables x86 floating point extended
 			register save and restore. The kernel will only save
 			legacy floating-point registers on task switch.
