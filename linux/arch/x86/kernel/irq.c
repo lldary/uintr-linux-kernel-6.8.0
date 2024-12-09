@@ -370,7 +370,7 @@ DEFINE_IDTENTRY_SYSVEC_SIMPLE(sysvec_kvm_posted_intr_nested_ipi)
 DEFINE_IDTENTRY_SYSVEC(sysvec_uintr_spurious_interrupt)
 {
 	/* TODO: Add entry-exit tracepoints */
-	ack_APIC_irq();
+	apic_eoi();
 	inc_irq_stat(uintr_spurious_count);
 
 	/*
@@ -395,7 +395,7 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_uintr_spurious_interrupt)
 DEFINE_IDTENTRY_SYSVEC(sysvec_uintr_kernel_notification)
 {
 	/* TODO: Add entry-exit tracepoints */
-	ack_APIC_irq();
+	apic_eoi();
 	inc_irq_stat(uintr_kernel_notifications);	
 
 	pr_debug_ratelimited("uintr: Kernel notification interrupt on %d\n",
