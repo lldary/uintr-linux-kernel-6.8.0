@@ -570,6 +570,11 @@ enum {
 	/* return status information for a buffer group */
 	IORING_REGISTER_PBUF_STATUS		= 26,
 
+	/* User Interrupts based notification */
+	/* Skip a few numbers to avoid upstream clashes */
+	IORING_REGISTER_UINTR			= 31,
+	IORING_UNREGISTER_UINTR			= 32,
+
 	/* this goes last */
 	IORING_REGISTER_LAST,
 

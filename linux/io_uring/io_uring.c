@@ -74,6 +74,10 @@
 #include <linux/security.h>
 #include <asm/shmparam.h>
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+#include <asm/uintr.h>
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/io_uring.h>
 
@@ -634,6 +638,11 @@ void __io_commit_cqring_flush(struct io_ring_ctx *ctx)
 	}
 	if (ctx->has_evfd)
 		io_eventfd_flush_signal(ctx);
+
+#ifdef CONFIG_X86_USER_INTERRUPTS
+	if (ctx->cq_uintr_f)
+		uintr_notify(ctx->cq_uintr_f);
+#endif
 }
 
 static inline void __io_cq_lock(struct io_ring_ctx *ctx)
@@ -2850,6 +2859,44 @@ static unsigned long rings_size(struct io_ring_ctx *ctx, unsigned int sq_entries
 	return off;
 }
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+static int io_uintr_register(struct io_ring_ctx *ctx, void __user *arg)
+{
+	__s32 __user *fds = arg;
+	int fd;
+
+	if (ctx->cq_uintr_f)
+		return -EBUSY;
+
+	if (copy_from_user(&fd, fds, sizeof(*fds)))
+		return -EFAULT;
+
+	ctx->cq_uintr_f = uvecfd_fget(fd);
+	if (IS_ERR(ctx->cq_uintr_f)) {
+		int ret = PTR_ERR(ctx->cq_uintr_f);
+
+		ctx->cq_uintr_f = NULL;
+		return ret;
+	}
+
+	return 0;
+}
+
+static int io_uintr_unregister(struct io_ring_ctx *ctx)
+{
+	if (ctx->cq_uintr_f) {
+		fput(ctx->cq_uintr_f);
+		ctx->cq_uintr_f = NULL;
+		return 0;
+	}
+
+	return -ENXIO;
+}
+#else
+static int io_uintr_register(struct io_ring_ctx *ctx, void __user *arg) { return -EINVAL; }
+static int io_uintr_unregister(struct io_ring_ctx *ctx) { return -EINVAL; }
+#endif
+
 static void io_req_caches_free(struct io_ring_ctx *ctx)
 {
 	struct io_kiocb *req;
@@ -2887,6 +2934,7 @@ static __cold void io_ring_ctx_free(struct io_ring_ctx *ctx)
 		__io_sqe_files_unregister(ctx);
 	io_cqring_overflow_kill(ctx);
 	io_eventfd_unregister(ctx);
+	io_uintr_unregister(ctx);
 	io_alloc_cache_free(&ctx->apoll_cache, io_apoll_cache_free);
 	io_alloc_cache_free(&ctx->netmsg_cache, io_netmsg_cache_free);
 	io_futex_cache_free(ctx);

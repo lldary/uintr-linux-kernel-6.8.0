@@ -455,6 +455,18 @@ static int __io_uring_register(struct io_ring_ctx *ctx, unsigned opcode,
 			break;
 		ret = io_eventfd_unregister(ctx);
 		break;
+	case IORING_REGISTER_UINTR:
+		ret = -EINVAL;
+		if (nr_args != 1)
+			break;
+		ret = io_uintr_register(ctx, arg);
+		break;
+	case IORING_UNREGISTER_UINTR:
+		ret = -EINVAL;
+		if (arg || nr_args)
+			break;
+		ret = io_uintr_unregister(ctx);
+		break;
 	case IORING_REGISTER_PROBE:
 		ret = -EINVAL;
 		if (!arg || nr_args > 256)

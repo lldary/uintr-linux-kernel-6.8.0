@@ -378,6 +378,9 @@ struct io_ring_ctx {
 	struct wait_queue_head		poll_wq;
 	struct io_restriction		restrictions;
 
+	/* User Interrupts file descriptor */
+	struct file			*cq_uintr_f;
+
 	/* slow path rsrc auxilary data, used by update/register */
 	struct io_mapped_ubuf		*dummy_ubuf;
 	struct io_rsrc_data		*file_data;
