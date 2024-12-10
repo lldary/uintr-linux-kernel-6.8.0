@@ -20,10 +20,15 @@
 #include <linux/wait.h>
 #include <linux/slab.h>
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+#include <asm/uintr.h>
+#endif
+
 #include "vfio_pci_priv.h"
 
 struct vfio_pci_irq_ctx {
 	struct eventfd_ctx	*trigger;
+	struct file	*uintr_trigger;
 	struct virqfd		*unmask;
 	struct virqfd		*mask;
 	char			*name;
@@ -351,7 +356,7 @@ static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
 {
 	struct file *trigger = arg;
 
-	uvecfd_notify(trigger);
+	uintr_notify(trigger);
 	return IRQ_HANDLED;
 }
 #endif
@@ -441,7 +446,10 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
-		eventfd_ctx_put(ctx->trigger);
+		if(ctx->trigger)
+			eventfd_ctx_put(ctx->trigger);
+		if(ctx->uintr_trigger)
+			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
 	}
 
@@ -501,6 +509,7 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 		ctx->producer.token = NULL;
 	}
 	ctx->trigger = trigger;
+	ctx->uintr_trigger = NULL;
 
 	return 0;
 
@@ -519,7 +528,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 {
 	struct pci_dev *pdev = vdev->pdev;
 	struct vfio_pci_irq_ctx *ctx;
-	sstruct file *trigger;
+	struct file *trigger;
 	int irq = -EINVAL, ret;
 	u16 cmd;
 
@@ -533,7 +542,10 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
-		fput(ctx->trigger);
+		if(ctx->trigger)
+			eventfd_ctx_put(ctx->trigger);
+		if(ctx->uintr_trigger)
+			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
 	}
 
@@ -592,7 +604,8 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 
 		ctx->producer.token = NULL;
 	}
-	ctx->trigger = trigger;
+	ctx->uintr_trigger = trigger;
+	ctx->trigger = NULL;
 
 	return 0;
 
@@ -655,7 +668,7 @@ static void vfio_msi_disable_uintr(struct vfio_pci_core_device *vdev, bool msix)
 	xa_for_each(&vdev->ctx, i, ctx) {
 		vfio_virqfd_disable(&ctx->unmask);
 		vfio_virqfd_disable(&ctx->mask);
-		vfio_msi_set_vector_signal_uintr(vdev, i, -1, msix);
+		vfio_msi_set_vector_signal(vdev, i, -1, msix);
 	}
 
 	cmd = vfio_pci_memory_lock_and_enable(vdev);
