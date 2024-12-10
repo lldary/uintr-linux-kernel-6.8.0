@@ -346,6 +346,16 @@ static irqreturn_t vfio_msihandler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
+{
+	struct file *trigger = arg;
+
+	uvecfd_notify(trigger);
+	return IRQ_HANDLED;
+}
+#endif
+
 static int vfio_msi_enable(struct vfio_pci_core_device *vdev, int nvec, bool msix)
 {
 	struct pci_dev *pdev = vdev->pdev;
@@ -503,6 +513,99 @@ out_free_ctx:
 	return ret;
 }
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
+				      unsigned int vector, int fd, bool msix)
+{
+	struct pci_dev *pdev = vdev->pdev;
+	struct vfio_pci_irq_ctx *ctx;
+	sstruct file *trigger;
+	int irq = -EINVAL, ret;
+	u16 cmd;
+
+	ctx = vfio_irq_ctx_get(vdev, vector);
+
+	if (ctx) {
+		irq_bypass_unregister_producer(&ctx->producer);
+		irq = pci_irq_vector(pdev, vector);
+		cmd = vfio_pci_memory_lock_and_enable(vdev);
+		free_irq(irq, ctx->trigger);
+		vfio_pci_memory_unlock_and_restore(vdev, cmd);
+		/* Interrupt stays allocated, will be freed at MSI-X disable. */
+		kfree(ctx->name);
+		fput(ctx->trigger);
+		vfio_irq_ctx_free(vdev, ctx, vector);
+	}
+
+	if (fd < 0)
+		return 0;
+
+	if (irq == -EINVAL) {
+		/* Interrupt stays allocated, will be freed at MSI-X disable. */
+		irq = vfio_msi_alloc_irq(vdev, vector, msix);
+		if (irq < 0)
+			return irq;
+	}
+
+	ctx = vfio_irq_ctx_alloc(vdev, vector);
+	if (!ctx)
+		return -ENOMEM;
+
+	ctx->name = kasprintf(GFP_KERNEL_ACCOUNT, "vfio-msi%s[%d](%s)",
+			      msix ? "x" : "", vector, pci_name(pdev));
+	if (!ctx->name) {
+		ret = -ENOMEM;
+		goto out_free_ctx;
+	}
+
+	trigger = uvecfd_fget(fd);
+	if (IS_ERR(trigger)) {
+		ret = PTR_ERR(trigger);
+		goto out_free_name;
+	}
+
+	/*
+	 * If the vector was previously allocated, refresh the on-device
+	 * message data before enabling in case it had been cleared or
+	 * corrupted (e.g. due to backdoor resets) since writing.
+	 */
+	cmd = vfio_pci_memory_lock_and_enable(vdev);
+	if (msix) {
+		struct msi_msg msg;
+
+		get_cached_msi_msg(irq, &msg);
+		pci_write_msi_msg(irq, &msg);
+	}
+
+	ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
+	vfio_pci_memory_unlock_and_restore(vdev, cmd);
+	if (ret)
+		goto out_put_eventfd_ctx;
+
+	ctx->producer.token = trigger;
+	ctx->producer.irq = irq;
+	ret = irq_bypass_register_producer(&ctx->producer);
+	if (unlikely(ret)) {
+		dev_info(&pdev->dev,
+		"irq bypass producer (token %p) registration fails: %d\n",
+		ctx->producer.token, ret);
+
+		ctx->producer.token = NULL;
+	}
+	ctx->trigger = trigger;
+
+	return 0;
+
+out_put_eventfd_ctx:
+	fput(trigger);
+out_free_name:
+	kfree(ctx->name);
+out_free_ctx:
+	vfio_irq_ctx_free(vdev, ctx, vector);
+	return ret;
+}
+#endif
+
 static int vfio_msi_set_block(struct vfio_pci_core_device *vdev, unsigned start,
 			      unsigned count, int32_t *fds, bool msix)
 {
@@ -521,6 +624,55 @@ static int vfio_msi_set_block(struct vfio_pci_core_device *vdev, unsigned start,
 
 	return ret;
 }
+
+#ifdef CONFIG_X86_USER_INTERRUPTS
+static int vfio_msi_set_block_uintr(struct vfio_pci_core_device *vdev, unsigned start,
+			      unsigned count, int32_t *fds, bool msix)
+{
+	unsigned int i, j;
+	int ret = 0;
+
+	for (i = 0, j = start; i < count && !ret; i++, j++) {
+		int fd = fds ? fds[i] : -1;
+		ret = vfio_msi_set_vector_signal_uintr(vdev, j, fd, msix);
+	}
+
+	if (ret) {
+		for (i = start; i < j; i++)
+			vfio_msi_set_vector_signal_uintr(vdev, i, -1, msix);
+	}
+
+	return ret;
+}
+
+static void vfio_msi_disable_uintr(struct vfio_pci_core_device *vdev, bool msix)
+{
+	struct pci_dev *pdev = vdev->pdev;
+	struct vfio_pci_irq_ctx *ctx;
+	unsigned long i;
+	u16 cmd;
+
+	xa_for_each(&vdev->ctx, i, ctx) {
+		vfio_virqfd_disable(&ctx->unmask);
+		vfio_virqfd_disable(&ctx->mask);
+		vfio_msi_set_vector_signal_uintr(vdev, i, -1, msix);
+	}
+
+	cmd = vfio_pci_memory_lock_and_enable(vdev);
+	pci_free_irq_vectors(pdev);
+	vfio_pci_memory_unlock_and_restore(vdev, cmd);
+
+	/*
+	 * Both disable paths above use pci_intx_for_msi() to clear DisINTx
+	 * via their shutdown paths.  Restore for NoINTx devices.
+	 */
+	if (vdev->nointx)
+		pci_intx(pdev, 0);
+
+	vdev->irq_type = VFIO_PCI_NUM_IRQS;
+}
+
+#endif
 
 static void vfio_msi_disable(struct vfio_pci_core_device *vdev, bool msix)
 {
@@ -680,6 +832,27 @@ static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 
 		return ret;
 	}
+
+#ifdef CONFIG_X86_USER_INTERRUPTS
+	if (flags & VFIO_IRQ_SET_DATA_UINTRFD) {
+		int32_t *fds = data;
+		int ret;
+
+		if (vdev->irq_type == index)
+			return vfio_msi_set_block_uintr(vdev, start, count,
+						  fds, msix);
+
+		ret = vfio_msi_enable(vdev, start + count, msix);
+		if (ret)
+			return ret;
+
+		ret = vfio_msi_set_block_uintr(vdev, start, count, fds, msix);
+		if (ret)
+			vfio_msi_disable_uintr(vdev, msix);
+
+		return ret;
+	}
+#endif
 
 	if (!irq_is(vdev, index))
 		return -EINVAL;
