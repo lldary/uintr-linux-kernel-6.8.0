@@ -555,6 +555,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	if (irq == -EINVAL) {
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		irq = vfio_msi_alloc_irq(vdev, vector, msix);
+		pr_info("vfio_msi_set_vector_signal_uintr: not alloc irq irq=%d, vector=%d, fd=%d\n",irq , vector, fd);
 		if (irq < 0)
 			return irq;
 	}
@@ -573,6 +574,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	trigger = uvecfd_fget(fd);
 	if (IS_ERR(trigger)) {
 		ret = PTR_ERR(trigger);
+		pr_info("vfio_msi_set_vector_signal_uintr: uvecfd_fget failed\n");
 		goto out_free_name;
 	}
 
@@ -590,6 +592,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	}
 
 	ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
+	pr_info("vfio_msi_set_vector_signal_uintr: irq=%d, vector=%d, fd=%d ret=%d\n", irq, vector, fd, ret);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 	if (ret)
 		goto out_put_eventfd_ctx;
@@ -828,6 +831,7 @@ static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 		return -EINVAL;
 
 	if (flags & VFIO_IRQ_SET_DATA_EVENTFD) {
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: flags & VFIO_IRQ_SET_DATA_EVENTFD entry\n");
 		int32_t *fds = data;
 		int ret;
 
@@ -851,15 +855,19 @@ static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 		int32_t *fds = data;
 		int ret;
 
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: flags & VFIO_IRQ_SET_DATA_UINTRFD entry\n");
+
 		if (vdev->irq_type == index)
 			return vfio_msi_set_block_uintr(vdev, start, count,
 						  fds, msix);
 
 		ret = vfio_msi_enable(vdev, start + count, msix);
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n", ret);
 		if (ret)
 			return ret;
 
 		ret = vfio_msi_set_block_uintr(vdev, start, count, fds, msix);
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n", ret);
 		if (ret)
 			vfio_msi_disable_uintr(vdev, msix);
 
@@ -969,6 +977,8 @@ int vfio_pci_set_irqs_ioctl(struct vfio_pci_core_device *vdev, uint32_t flags,
 	int (*func)(struct vfio_pci_core_device *vdev, unsigned index,
 		    unsigned start, unsigned count, uint32_t flags,
 		    void *data) = NULL;
+
+	pr_info("vfio_pci_intrs.c: vfio_pci_set_irqs_ioctl: entry\n");
 
 	switch (index) {
 	case VFIO_PCI_INTX_IRQ_INDEX:

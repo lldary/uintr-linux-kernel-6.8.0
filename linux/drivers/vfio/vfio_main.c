@@ -1508,6 +1508,7 @@ int vfio_set_irqs_validate_and_prepare(struct vfio_irq_set *hdr, int num_irqs,
 		size = sizeof(uint8_t);
 		break;
 	case VFIO_IRQ_SET_DATA_EVENTFD:
+	case VFIO_IRQ_SET_DATA_UINTRFD:
 		size = sizeof(int32_t);
 		break;
 	default:

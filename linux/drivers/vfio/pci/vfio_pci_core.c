@@ -1216,6 +1216,9 @@ static int vfio_pci_ioctl_set_irqs(struct vfio_pci_core_device *vdev,
 
 	mutex_lock(&vdev->igate);
 
+	pr_info("vfio_pci: set_irqs: index=%d, start=%d, count=%d, flags=%x\n",
+		hdr.index, hdr.start, hdr.count, hdr.flags);
+
 	ret = vfio_pci_set_irqs_ioctl(vdev, hdr.flags, hdr.index, hdr.start,
 				      hdr.count, data);
 

@@ -261,7 +261,7 @@ SYSCALL_DEFINE2(uintr_vector_fd, u64, vector, unsigned int, flags)
 		goto out_free_uvec;
 	}
 
-	pr_debug("recv: Alloc vector success uvecfd %d uvec %llu for task=%d\n",
+	pr_info("recv: Alloc vector success uvecfd %d uvec %llu for task=%d\n",
 		 uvecfd, uvecfd_ctx->uvec, current->pid);
 
 	return uvecfd;
@@ -270,7 +270,7 @@ out_free_uvec:
 	do_uintr_unregister_vector(uvecfd_ctx->uvec, uvecfd_ctx->upid_ctx);
 out_free_ctx:
 	kfree(uvecfd_ctx);
-	pr_debug("recv: Alloc vector failed for task=%d ret %d\n",
+	pr_info("recv: Alloc vector failed for task=%d ret %d\n",
 		 current->pid, ret);
 	return ret;
 }
