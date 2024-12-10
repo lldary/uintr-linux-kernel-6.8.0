@@ -1,8 +1,3 @@
-#ifdef CONFIG_X86_USER_INTERRUPTS
-#include <asm/uintr.h>
-#endif
-
-#ifdef CONFIG_X86_USER_INTERRUPTS
 static int io_uintr_register(struct io_ring_ctx *ctx, void __user *arg)
 {
 	__s32 __user *fds = arg;
@@ -35,7 +30,5 @@ static int io_uintr_unregister(struct io_ring_ctx *ctx)
 
 	return -ENXIO;
 }
-#else
-static int io_uintr_register(struct io_ring_ctx *ctx, void __user *arg) { return -EINVAL; }
-static int io_uintr_unregister(struct io_ring_ctx *ctx) { return -EINVAL; }
-#endif
+
+

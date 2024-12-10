@@ -366,11 +366,15 @@ static void setup_uintr(struct cpuinfo_x86 *c)
 {
 	/* check the boot processor, plus compile options for UINTR. */
 	if (!cpu_feature_enabled(X86_FEATURE_UINTR))
-		goto disable_uintr;
+	{
+		pr_err_once("x86: User Interrupts (UINTR) not enabled. CONFIG_X86_UINTR is required. %u \n", static_cpu_has(X86_FEATURE_UINTR));
+		goto disable_uintr;}
 
 	/* checks the current processor's cpuid bits: */
 	if (!cpu_has(c, X86_FEATURE_UINTR))
-		goto disable_uintr;
+	{
+		pr_err_once("x86: User Interrupts (UINTR) not enabled. CPU feature bit is missing.\n");
+		goto disable_uintr;}
 
 	/* Confirm XSAVE support for UINTR is present. */
 	if (!cpu_has_xfeatures(XFEATURE_MASK_UINTR, NULL)) {
@@ -1700,6 +1704,8 @@ static void __init early_identify_cpu(struct cpuinfo_x86 *c)
 	cpu_set_bug_bits(c);
 
 	sld_setup(c);
+
+	fpu__init_system();
 
 #ifdef CONFIG_X86_32
 	/*

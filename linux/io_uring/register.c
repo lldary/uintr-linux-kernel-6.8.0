@@ -18,7 +18,13 @@
 #include <linux/io_uring.h>
 #include <linux/io_uring_types.h>
 
+#ifdef CONFIG_X86_USER_INTERRUPTS
+#include <asm/uintr.h>
 #include "io_uring_uintr_internel.h"
+#else
+static int io_uintr_register(struct io_ring_ctx *ctx, void __user *arg) { return -EINVAL; }
+static int io_uintr_unregister(struct io_ring_ctx *ctx) { return -EINVAL; }
+#endif
 
 #include "io_uring.h"
 #include "opdef.h"

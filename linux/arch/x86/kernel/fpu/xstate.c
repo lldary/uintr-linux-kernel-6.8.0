@@ -74,9 +74,9 @@ static unsigned short xsave_cpuid_features[] __initdata = {
 	[XFEATURE_PKRU]				= X86_FEATURE_OSPKE,
 	[XFEATURE_PASID]			= X86_FEATURE_ENQCMD,
 	[XFEATURE_CET_USER]			= X86_FEATURE_SHSTK,
+	[XFEATURE_UINTR]			= X86_FEATURE_UINTR,
 	[XFEATURE_XTILE_CFG]			= X86_FEATURE_AMX_TILE,
 	[XFEATURE_XTILE_DATA]			= X86_FEATURE_AMX_TILE,
-	[XFEATURE_UINTR]			= X86_FEATURE_UINTR,
 };
 
 static unsigned int xstate_offsets[XFEATURE_MAX] __ro_after_init =
