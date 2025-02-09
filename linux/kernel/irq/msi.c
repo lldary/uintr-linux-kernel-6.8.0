@@ -1294,7 +1294,7 @@ static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain
 		if (virq < 0)
 			return msi_handle_pci_fail(domain, desc, allocated);
 
-		for (i = 0; i < desc->nvec_used; i++) {
+		for (i = 0; i < desc->nvec_used; i++) { // 在vfio调用中为1
 			irq_set_msi_desc_off(virq, i, desc);
 			irq_debugfs_copy_devname(virq + i, dev);
 			ret = msi_init_virq(domain, virq + i, vflags);
@@ -1473,7 +1473,7 @@ struct msi_map msi_domain_alloc_irq_at(struct device *dev, unsigned int domid, u
 		goto unlock;
 	}
 
-	desc = msi_alloc_desc(dev, 1, affdesc);
+	desc = msi_alloc_desc(dev, 1, affdesc); // 确定desc->nvec_used desc->dev desc->affinity
 	if (!desc) {
 		map.index = -ENOMEM;
 		goto unlock;
@@ -1482,7 +1482,7 @@ struct msi_map msi_domain_alloc_irq_at(struct device *dev, unsigned int domid, u
 	if (icookie)
 		desc->data.icookie = *icookie;
 
-	ret = msi_insert_desc(dev, desc, domid, index);
+	ret = msi_insert_desc(dev, desc, domid, index);  // 确定desc->msi-index
 	if (ret) {
 		map.index = ret;
 		goto unlock;
