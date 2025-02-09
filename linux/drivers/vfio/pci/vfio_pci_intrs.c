@@ -429,6 +429,29 @@ static int vfio_msi_alloc_irq(struct vfio_pci_core_device *vdev,
 	return map.index < 0 ? map.index : map.virq;
 }
 
+static int vfio_msi_alloc_irq_uintr(struct vfio_pci_core_device *vdev,
+			      unsigned int vector, bool msix)
+{
+	struct pci_dev *pdev = vdev->pdev;
+	struct msi_map map;
+	int irq;
+	u16 cmd;
+
+	irq = pci_irq_vector(pdev, vector);
+	if (WARN_ON_ONCE(irq == 0))
+		return -EINVAL;
+	if (irq > 0 || !msix || !vdev->has_dyn_msix)
+		return irq;
+
+	cmd = vfio_pci_memory_lock_and_enable(vdev);
+	map = pci_msix_alloc_irq_at_uintr(pdev, vector, NULL);
+	vfio_pci_memory_unlock_and_restore(vdev, cmd);
+
+	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n", map.irq, vector, msix);
+
+	return map.index < 0 ? map.index : map.virq;
+}
+
 static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 				      unsigned int vector, int fd, bool msix)
 {
@@ -556,7 +579,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 
 	if (irq == -EINVAL) {
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
-		irq = vfio_msi_alloc_irq(vdev, vector, msix);
+		irq = vfio_msi_alloc_irq_uintr(vdev, vector, msix);
 		pr_info("vfio_msi_set_vector_signal_uintr: not alloc irq irq=%d, vector=%d, fd=%d\n",irq , vector, fd);
 		if (irq < 0)
 			return irq;

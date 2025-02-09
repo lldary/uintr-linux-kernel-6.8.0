@@ -1475,12 +1475,65 @@ static int irq_domain_alloc_irqs_locked(struct irq_domain *domain, int irq_base,
 		virq = irq_base;
 	} else {
 		virq = irq_domain_alloc_descs(irq_base, nr_irqs, 0, node,
-					      affinity);
+					      affinity); // alloc 中断号
 		if (virq < 0) {
 			pr_debug("cannot allocate IRQ(base %d, count %d)\n",
 				 irq_base, nr_irqs);
 			return virq;
 		}
+	}
+
+	if (irq_domain_alloc_irq_data(domain, virq, nr_irqs)) {
+		pr_debug("cannot allocate memory for IRQ%d\n", virq);
+		ret = -ENOMEM;
+		goto out_free_desc;
+	}
+
+	ret = irq_domain_alloc_irqs_hierarchy(domain, virq, nr_irqs, arg);
+	if (ret < 0)
+		goto out_free_irq_data;
+
+	for (i = 0; i < nr_irqs; i++) {
+		ret = irq_domain_trim_hierarchy(virq + i);
+		if (ret)
+			goto out_free_irq_data;
+	}
+
+	for (i = 0; i < nr_irqs; i++)
+		irq_domain_insert_irq(virq + i);
+
+	return virq;
+
+out_free_irq_data:
+	irq_domain_free_irq_data(virq, nr_irqs);
+out_free_desc:
+	irq_free_descs(virq, nr_irqs);
+	return ret;
+}
+
+static int irq_domain_alloc_irqs_locked_uintr(struct irq_domain *domain, int irq_base,
+					unsigned int nr_irqs, int node, void *arg,
+					bool realloc, const struct irq_affinity_desc *affinity)
+{
+	int i, ret, virq;
+	static bool uintr_init = false;
+
+	if(nr_irqs > 1) {
+		pr_debug("uintr only support 1 irq\n");
+		return -EINVAL;
+	}
+
+	if(!uintr_init) {
+		virq = irq_domain_alloc_descs(irq_base, nr_irqs, 0, node,
+					      affinity); // alloc 中断号
+		if (virq < 0) {
+			pr_debug("cannot allocate IRQ(base %d, count %d)\n",
+				 irq_base, nr_irqs);
+			return virq;
+		}
+		uintr_init = true;
+	} else{
+		virq = irq_base;
 	}
 
 	if (irq_domain_alloc_irq_data(domain, virq, nr_irqs)) {
@@ -1553,6 +1606,27 @@ int __irq_domain_alloc_irqs(struct irq_domain *domain, int irq_base,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(__irq_domain_alloc_irqs);
+
+int __irq_domain_alloc_irqs_uintr(struct irq_domain *domain, int irq_base,
+			    unsigned int nr_irqs, int node, void *arg,
+			    bool realloc, const struct irq_affinity_desc *affinity)
+{
+	int ret;
+
+	if (domain == NULL || nr_irqs > 1 || irq_base < 0) {
+		domain = irq_default_domain;
+		if (WARN(!domain, "domain is NULL; cannot allocate IRQ\n"))
+			return -EINVAL;
+	}
+
+	mutex_lock(&domain->root->mutex);
+	ret = irq_domain_alloc_irqs_locked_uintr(domain, irq_base, nr_irqs, node, arg,
+					   realloc, affinity);
+	mutex_unlock(&domain->root->mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(__irq_domain_alloc_irqs_uintr);
 
 /* The irq_data was moved, fix the revmap to refer to the new location */
 static void irq_domain_fix_revmap(struct irq_data *d)

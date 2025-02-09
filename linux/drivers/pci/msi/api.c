@@ -161,6 +161,21 @@ struct msi_map pci_msix_alloc_irq_at(struct pci_dev *dev, unsigned int index,
 }
 EXPORT_SYMBOL_GPL(pci_msix_alloc_irq_at);
 
+struct msi_map pci_msix_alloc_irq_at_uintr(struct pci_dev *dev, unsigned int index,
+				     const struct irq_affinity_desc *affdesc)
+{
+	struct msi_map map = { .index = -ENOTSUPP };
+
+	if (!dev->msix_enabled)
+		return map;
+
+	if (!pci_msix_can_alloc_dyn(dev))
+		return map;
+
+	return msi_domain_alloc_irq_at_uintr(&dev->dev, MSI_DEFAULT_DOMAIN, index, affdesc, NULL);
+}
+EXPORT_SYMBOL_GPL(pci_msix_alloc_irq_at_uintr);
+
 /**
  * pci_msix_free_irq - Free an interrupt on a PCI/MSIX interrupt domain
  *

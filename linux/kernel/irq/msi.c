@@ -1311,6 +1311,73 @@ static int __msi_domain_alloc_irqs(struct device *dev, struct irq_domain *domain
 	return 0;
 }
 
+static int __msi_domain_alloc_irqs_uintr(struct device *dev, struct irq_domain *domain,
+				   struct msi_ctrl *ctrl)
+{
+	struct xarray *xa = &dev->msi.data->__domains[ctrl->domid].store;
+	struct msi_domain_info *info = domain->host_data;
+	struct msi_domain_ops *ops = info->ops;
+	unsigned int vflags = 0, allocated = 0;
+	msi_alloc_info_t arg = { };
+	struct msi_desc *desc;
+	unsigned long idx;
+	int i, ret, virq;
+
+	ret = msi_domain_prepare_irqs(domain, dev, ctrl->nirqs, &arg);
+	if (ret)
+		return ret;
+
+	/*
+	 * This flag is set by the PCI layer as we need to activate
+	 * the MSI entries before the PCI layer enables MSI in the
+	 * card. Otherwise the card latches a random msi message.
+	 */
+	if (info->flags & MSI_FLAG_ACTIVATE_EARLY)
+		vflags |= VIRQ_ACTIVATE;
+
+	/*
+	 * Interrupt can use a reserved vector and will not occupy
+	 * a real device vector until the interrupt is requested.
+	 */
+	if (msi_check_reservation_mode(domain, info, dev))
+		vflags |= VIRQ_CAN_RESERVE;
+
+	xa_for_each_range(xa, idx, desc, ctrl->first, ctrl->last) {
+		if (!msi_desc_match(desc, MSI_DESC_NOTASSOCIATED))
+			continue;
+
+		/* This should return -ECONFUSED... */
+		if (WARN_ON_ONCE(allocated >= ctrl->nirqs))
+			return -EINVAL;
+
+		if (ops->prepare_desc)
+			ops->prepare_desc(domain, &arg, desc);
+
+		ops->set_desc(&arg, desc);
+
+		virq = __irq_domain_alloc_irqs_uintr(domain, UINTR_MSIX_VECTOR, desc->nvec_used,
+					       dev_to_node(dev), &arg, false,
+					       desc->affinity);
+		if (virq < 0)
+			return msi_handle_pci_fail(domain, desc, allocated);
+
+		for (i = 0; i < desc->nvec_used; i++) { // 在vfio调用中为1
+			irq_set_msi_desc_off(virq, i, desc);
+			irq_debugfs_copy_devname(virq + i, dev);
+			ret = msi_init_virq(domain, virq + i, vflags);
+			if (ret)
+				return ret;
+		}
+		if (info->flags & MSI_FLAG_DEV_SYSFS) {
+			ret = msi_sysfs_populate_desc(dev, desc);
+			if (ret)
+				return ret;
+		}
+		allocated++;
+	}
+	return 0;
+}
+
 static int msi_domain_alloc_simple_msi_descs(struct device *dev,
 					     struct msi_domain_info *info,
 					     struct msi_ctrl *ctrl)
@@ -1491,6 +1558,53 @@ struct msi_map msi_domain_alloc_irq_at(struct device *dev, unsigned int domid, u
 	ctrl.first = ctrl.last = desc->msi_index;
 
 	ret = __msi_domain_alloc_irqs(dev, domain, &ctrl);
+	if (ret) {
+		map.index = ret;
+		msi_domain_free_locked(dev, &ctrl);
+	} else {
+		map.index = desc->msi_index;
+		map.virq = desc->irq;
+	}
+unlock:
+	msi_unlock_descs(dev);
+	return map;
+}
+
+struct msi_map msi_domain_alloc_irq_at_uintr(struct device *dev, unsigned int domid, unsigned int index,
+				       const struct irq_affinity_desc *affdesc,
+				       union msi_instance_cookie *icookie)
+{
+	struct msi_ctrl ctrl = { .domid	= domid, .nirqs = 1, };
+	struct irq_domain *domain;
+	struct msi_map map = { };
+	struct msi_desc *desc;
+	int ret;
+
+	msi_lock_descs(dev);
+	domain = msi_get_device_domain(dev, domid);
+	if (!domain) {
+		map.index = -ENODEV;
+		goto unlock;
+	}
+
+	desc = msi_alloc_desc(dev, 1, affdesc); // 确定desc->nvec_used desc->dev desc->affinity
+	if (!desc) {
+		map.index = -ENOMEM;
+		goto unlock;
+	}
+
+	if (icookie)
+		desc->data.icookie = *icookie;
+
+	ret = msi_insert_desc(dev, desc, domid, index);  // 确定desc->msi-index
+	if (ret) {
+		map.index = ret;
+		goto unlock;
+	}
+
+	ctrl.first = ctrl.last = desc->msi_index;
+
+	ret = __msi_domain_alloc_irqs_uintr(dev, domain, &ctrl);
 	if (ret) {
 		map.index = ret;
 		msi_domain_free_locked(dev, &ctrl);
