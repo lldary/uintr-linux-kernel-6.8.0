@@ -19,6 +19,8 @@
 
 #include "internals.h"
 
+#include <asm/irq_vectors.h>
+
 /**
  * struct msi_ctrl - MSI internal management control structure
  * @domid:	ID of the domain on which management operations should be done

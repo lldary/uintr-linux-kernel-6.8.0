@@ -100,6 +100,7 @@
 /* Vector for User interrupt notifications */
 #define UINTR_NOTIFICATION_VECTOR       0xec
 #define UINTR_KERNEL_VECTOR		0xeb
+#define UINTR_MSIX_VECTOR		UINTR_NOTIFICATION_VECTOR // TODO: 要修改为一个合适的值
 
 #define LOCAL_TIMER_VECTOR		0xea
 

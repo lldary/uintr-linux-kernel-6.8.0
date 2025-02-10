@@ -424,7 +424,7 @@ static int vfio_msi_alloc_irq(struct vfio_pci_core_device *vdev,
 	map = pci_msix_alloc_irq_at(pdev, vector, NULL);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 
-	pr_info("vfio_msi_alloc_irq: alloc irq=%d, vector=%d, msix=%d\n", map.irq, vector, msix);
+	pr_info("vfio_msi_alloc_irq: alloc irq=%d, vector=%d, msix=%d\n", map.virq, vector, msix);
 
 	return map.index < 0 ? map.index : map.virq;
 }
@@ -447,7 +447,7 @@ static int vfio_msi_alloc_irq_uintr(struct vfio_pci_core_device *vdev,
 	map = pci_msix_alloc_irq_at_uintr(pdev, vector, NULL);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 
-	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n", map.irq, vector, msix);
+	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n", map.virq, vector, msix);
 
 	return map.index < 0 ? map.index : map.virq;
 }
