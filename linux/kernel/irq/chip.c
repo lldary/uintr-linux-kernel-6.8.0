@@ -294,6 +294,15 @@ int irq_activate(struct irq_desc *desc)
 	return 0;
 }
 
+int irq_activate_uintr(struct irq_desc *desc)
+{
+	struct irq_data *d = irq_desc_get_irq_data(desc);
+
+	if (!irqd_affinity_is_managed(d))
+		return irq_domain_activate_irq_uintr(d, false);
+	return 0;
+}
+
 int irq_activate_and_startup(struct irq_desc *desc, bool resend)
 {
 	if (WARN_ON(irq_activate(desc)))

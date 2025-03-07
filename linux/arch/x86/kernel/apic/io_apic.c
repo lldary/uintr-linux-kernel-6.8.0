@@ -3090,6 +3090,8 @@ int mp_irqdomain_activate(struct irq_domain *domain,
 	unsigned long flags;
 
 	raw_spin_lock_irqsave(&ioapic_lock, flags);
+	pr_info("IOAPIC[%d]: activate IRQ %d, %d\n",
+		mp_irqdomain_ioapic_idx(domain), irq_data->hwirq, reserve);
 	ioapic_configure_entry(irq_data);
 	raw_spin_unlock_irqrestore(&ioapic_lock, flags);
 	return 0;

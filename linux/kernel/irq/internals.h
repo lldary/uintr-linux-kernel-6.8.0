@@ -85,6 +85,7 @@ extern void __enable_irq(struct irq_desc *desc);
 #define IRQ_START_COND	false
 
 extern int irq_activate(struct irq_desc *desc);
+extern int irq_activate_uintr(struct irq_desc *desc);
 extern int irq_activate_and_startup(struct irq_desc *desc, bool resend);
 extern int irq_startup(struct irq_desc *desc, bool resend, bool force);
 

@@ -125,6 +125,25 @@ static unsigned int matrix_alloc_area(struct irq_matrix *m, struct cpumap *cm,
 	return area;
 }
 
+static unsigned int matrix_alloc_area_uintr(struct irq_matrix *m, struct cpumap *cm,
+	unsigned int num, bool managed)
+{
+unsigned int area, start = m->alloc_start;
+unsigned int end = m->alloc_end;
+
+bitmap_or(m->scratch_map, cm->managed_map, m->system_map, end);
+bitmap_or(m->scratch_map, m->scratch_map, cm->alloc_map, end);
+area = bitmap_find_next_zero_area(m->scratch_map, end, start, num, 0);
+area = UINTR_MSIX_VECTOR;
+if (area >= end)
+return area;
+if (managed)
+bitmap_set(cm->managed_map, area, num);
+else
+bitmap_set(cm->alloc_map, area, num);
+return area;
+}
+
 /* Find the best CPU which has the lowest vector allocation count */
 static unsigned int matrix_find_best_cpu(struct irq_matrix *m,
 					const struct cpumask *msk)
@@ -144,6 +163,28 @@ static unsigned int matrix_find_best_cpu(struct irq_matrix *m,
 		maxavl = cm->available;
 	}
 	return best_cpu;
+}
+
+/* Find the best CPU which has the lowest vector allocation count */
+static unsigned int matrix_find_best_cpu_uintr(struct irq_matrix *m,
+	const struct cpumask *msk)
+{
+unsigned int cpu, best_cpu, maxavl = 0;
+struct cpumap *cm;
+
+best_cpu = UINT_MAX;
+
+for_each_cpu(cpu, msk) {
+cm = per_cpu_ptr(m->maps, cpu);
+
+if (!cm->online || cm->available <= maxavl)
+continue;
+
+best_cpu = cpu;
+maxavl = cm->available;
+}
+best_cpu = smp_processor_id();
+return best_cpu;
 }
 
 /* Find the best CPU which has the lowest number of managed IRQs allocated */
@@ -404,6 +445,46 @@ int irq_matrix_alloc(struct irq_matrix *m, const struct cpumask *msk,
 	*mapped_cpu = cpu;
 	trace_irq_matrix_alloc(bit, cpu, m, cm);
 	return bit;
+
+}
+
+/**
+ * irq_matrix_alloc_uintr - Allocate a regular interrupt in a CPU map
+ * @m:		Matrix pointer
+ * @msk:	Which CPUs to search in
+ * @reserved:	Allocate previously reserved interrupts
+ * @mapped_cpu: Pointer to store the CPU for which the irq was allocated
+ */
+ int irq_matrix_alloc_uintr(struct irq_matrix *m, const struct cpumask *msk,
+	bool reserved, unsigned int *mapped_cpu)
+{
+unsigned int cpu, bit;
+struct cpumap *cm;
+
+/*
+* Not required in theory, but matrix_find_best_cpu() uses
+* for_each_cpu() which ignores the cpumask on UP .
+*/
+if (cpumask_empty(msk))
+return -EINVAL;
+
+cpu = matrix_find_best_cpu_uintr(m, msk);
+if (cpu == UINT_MAX)
+return -ENOSPC;
+
+cm = per_cpu_ptr(m->maps, cpu);
+bit = matrix_alloc_area_uintr(m, cm, 1, false);
+if (bit >= m->alloc_end)
+return -ENOSPC;
+cm->allocated++;
+cm->available--;
+m->total_allocated++;
+m->global_available--;
+if (reserved)
+m->global_reserved--;
+*mapped_cpu = cpu;
+trace_irq_matrix_alloc(bit, cpu, m, cm);
+return bit;
 
 }
 

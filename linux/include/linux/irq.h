@@ -1245,11 +1245,14 @@ void irq_matrix_reserve(struct irq_matrix *m);
 void irq_matrix_remove_reserved(struct irq_matrix *m);
 int irq_matrix_alloc(struct irq_matrix *m, const struct cpumask *msk,
 		     bool reserved, unsigned int *mapped_cpu);
+int irq_matrix_alloc_uintr(struct irq_matrix *m, const struct cpumask *msk,
+				bool reserved, unsigned int *mapped_cpu);
 void irq_matrix_free(struct irq_matrix *m, unsigned int cpu,
 		     unsigned int bit, bool managed);
 void irq_matrix_assign(struct irq_matrix *m, unsigned int bit);
 unsigned int irq_matrix_available(struct irq_matrix *m, bool cpudown);
 unsigned int irq_matrix_allocated(struct irq_matrix *m);
+unsigned int irq_matrix_allocated_uintr(struct irq_matrix *m);
 unsigned int irq_matrix_reserved(struct irq_matrix *m);
 void irq_matrix_debug_show(struct seq_file *sf, struct irq_matrix *m, int ind);
 

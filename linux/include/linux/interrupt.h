@@ -148,6 +148,21 @@ request_threaded_irq(unsigned int irq, irq_handler_t handler,
 		     irq_handler_t thread_fn,
 		     unsigned long flags, const char *name, void *dev);
 
+/*
+ * If a (PCI) device interrupt is not connected we set dev->irq to
+ * IRQ_NOTCONNECTED. This causes request_irq() to fail with -ENOTCONN, so we
+ * can distingiush that case from other error returns.
+ *
+ * 0x80000000 is guaranteed to be outside the available range of interrupts
+ * and easy to distinguish from other possible incorrect values.
+ */
+ #define IRQ_NOTCONNECTED	(1U << 31)
+
+ extern int __must_check
+ request_threaded_irq_uintr(unsigned int irq, irq_handler_t handler,
+			  irq_handler_t thread_fn,
+			  unsigned long flags, const char *name, void *dev);
+
 /**
  * request_irq - Add a handler for an interrupt line
  * @irq:	The interrupt line to allocate
@@ -167,6 +182,26 @@ request_irq(unsigned int irq, irq_handler_t handler, unsigned long flags,
 {
 	return request_threaded_irq(irq, handler, NULL, flags, name, dev);
 }
+
+/**
+ * request_irq_uintr - Add a handler for an interrupt line
+ * @irq:	The interrupt line to allocate
+ * @handler:	Function to be called when the IRQ occurs.
+ *		Primary handler for threaded interrupts
+ *		If NULL, the default primary handler is installed
+ * @flags:	Handling flags
+ * @name:	Name of the device generating this interrupt
+ * @dev:	A cookie passed to the handler function
+ *
+ * This call allocates an interrupt and establishes a handler; see
+ * the documentation for request_threaded_irq() for details.
+ */
+ static inline int __must_check
+ request_irq_uintr(unsigned int irq, irq_handler_t handler, unsigned long flags,
+		 const char *name, void *dev)
+ {
+	 return request_threaded_irq_uintr(irq, handler, NULL, flags, name, dev);
+ }
 
 extern int __must_check
 request_any_context_irq(unsigned int irq, irq_handler_t handler,

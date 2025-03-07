@@ -986,7 +986,8 @@ static int do_uintr_register_handler(u64 handler, unsigned int flags)
 
 	/* Modify only the relevant bits of the MISC MSR */
 	xsave_rdmsrl(xstate, MSR_IA32_UINTR_MISC, &misc_msr);
-	misc_msr |= (u64)UINTR_NOTIFICATION_VECTOR << 32;
+	// misc_msr |= (u64)UINTR_NOTIFICATION_VECTOR << 32;
+	misc_msr |= (u64)UINTR_MSIX_VECTOR << 32;
 	xsave_wrmsrl(xstate, MSR_IA32_UINTR_MISC, misc_msr);
 
 	t->thread.upid_activated = true;
@@ -999,6 +1000,10 @@ static int do_uintr_register_handler(u64 handler, unsigned int flags)
 		else
 			upid_ctx->waiting_cost = UPID_WAITING_COST_SENDER;
 	}
+
+	set_bit(UINTR_UPID_STATUS_SN, (unsigned long *)&upid->nc.status);
+	pr_info("recv: task=%d registered handler=%llx upid %px flags=%d cpu=%d\n",
+		t->pid, handler, upid, flags, smp_processor_id());
 
 	pr_debug("recv: task=%d register handler=%llx upid %px flags=%d\n",
 		 t->pid, handler, upid, flags);
@@ -1388,7 +1393,8 @@ void switch_uintr_return(void)
 	/* Modify only the relevant bits of the MISC MSR */
 	rdmsrl(MSR_IA32_UINTR_MISC, misc_msr);
 	if (!(misc_msr & GENMASK_ULL(39, 32))) {
-		misc_msr |= (u64)UINTR_NOTIFICATION_VECTOR << 32;
+		// misc_msr |= (u64)UINTR_NOTIFICATION_VECTOR << 32;
+		misc_msr |= (u64)UINTR_MSIX_VECTOR << 32;
 		wrmsrl(MSR_IA32_UINTR_MISC, misc_msr);
 	}
 
@@ -1398,7 +1404,7 @@ void switch_uintr_return(void)
 	 */
 	upid = current->thread.upid_ctx->upid;
 	upid->nc.ndst = cpu_to_ndst(smp_processor_id());
-	clear_bit(UINTR_UPID_STATUS_SN, (unsigned long *)&upid->nc.status);
+	// clear_bit(UINTR_UPID_STATUS_SN, (unsigned long *)&upid->nc.status);
 
 	/*
 	 * Interrupts might have accumulated in the UPID while the thread was
@@ -1412,8 +1418,8 @@ void switch_uintr_return(void)
 	 * the UIRR. In that case the kernel would need to carefully manage the
 	 * race with the hardware if the UPID gets updated after the read.
 	 */
-	if (READ_ONCE(upid->puir))
-		apic->send_IPI_self(UINTR_NOTIFICATION_VECTOR);
+	// if (READ_ONCE(upid->puir))
+	// 	apic->send_IPI_self(UINTR_NOTIFICATION_VECTOR);
 }
 
 /* Check does SN need to be set here */

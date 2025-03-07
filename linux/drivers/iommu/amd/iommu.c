@@ -3526,6 +3526,7 @@ static void amd_ir_update_irte(struct irq_data *irqd, struct amd_iommu *iommu,
 static int irq_remapping_activate(struct irq_domain *domain,
 				  struct irq_data *irq_data, bool reserve)
 {
+	pr_info("irq_remapping_activate\n");
 	struct amd_ir_data *data = irq_data->chip_data;
 	struct irq_2_irte *irte_info = &data->irq_2_irte;
 	struct amd_iommu *iommu = data->iommu;

@@ -257,6 +257,45 @@ assign_vector_locked(struct irq_data *irqd, const struct cpumask *dest)
 		return -EBUSY;
 
 	vector = irq_matrix_alloc(vector_matrix, dest, resvd, &cpu);
+	pr_info("vector = %d cpu = %d\n", vector, cpu);
+	trace_vector_alloc(irqd->irq, vector, resvd, vector);
+	if (vector < 0)
+		return vector;
+	apic_update_vector(irqd, vector, cpu);
+	apic_update_irq_cfg(irqd, vector, cpu);
+
+	return 0;
+}
+
+static int
+assign_vector_locked_uintr(struct irq_data *irqd, const struct cpumask *dest)
+{
+	struct apic_chip_data *apicd = apic_chip_data(irqd);
+	bool resvd = apicd->has_reserved;
+	unsigned int cpu = apicd->cpu;
+	int vector = apicd->vector;
+
+	lockdep_assert_held(&vector_lock);
+
+	/*
+	 * If the current target CPU is online and in the new requested
+	 * affinity mask, there is no point in moving the interrupt from
+	 * one CPU to another.
+	 */
+	if (vector && cpu_online(cpu) && cpumask_test_cpu(cpu, dest))
+		return 0;
+
+	/*
+	 * Careful here. @apicd might either have move_in_progress set or
+	 * be enqueued for cleanup. Assigning a new vector would either
+	 * leave a stale vector on some CPU around or in case of a pending
+	 * cleanup corrupt the hlist.
+	 */
+	if (apicd->move_in_progress || !hlist_unhashed(&apicd->clist))
+		return -EBUSY;
+
+	vector = irq_matrix_alloc_uintr(vector_matrix, dest, resvd, &cpu);
+	pr_info("uintr vector = %d cpu = %d\n", vector, cpu);
 	trace_vector_alloc(irqd->irq, vector, resvd, vector);
 	if (vector < 0)
 		return vector;
@@ -304,6 +343,34 @@ static int assign_irq_vector_any_locked(struct irq_data *irqd)
 
 	/* Try the full online mask */
 	return assign_vector_locked(irqd, cpu_online_mask);
+}
+
+static int assign_irq_vector_any_locked_uintr(struct irq_data *irqd)
+{
+	/* Get the affinity mask - either irq_default_affinity or (user) set */
+	const struct cpumask *affmsk = irq_data_get_affinity_mask(irqd);
+	int node = irq_data_get_node(irqd);
+
+	if (node != NUMA_NO_NODE) {
+		/* Try the intersection of @affmsk and node mask */
+		cpumask_and(vector_searchmask, cpumask_of_node(node), affmsk);
+		if (!assign_vector_locked_uintr(irqd, vector_searchmask))
+			return 0;
+	}
+
+	/* Try the full affinity mask */
+	cpumask_and(vector_searchmask, affmsk, cpu_online_mask);
+	if (!assign_vector_locked_uintr(irqd, vector_searchmask))
+		return 0;
+
+	if (node != NUMA_NO_NODE) {
+		/* Try the node mask */
+		if (!assign_vector_locked_uintr(irqd, cpumask_of_node(node)))
+			return 0;
+	}
+
+	/* Try the full online mask */
+	return assign_vector_locked_uintr(irqd, cpu_online_mask);
 }
 
 static int
@@ -428,6 +495,38 @@ static int activate_reserved(struct irq_data *irqd)
 	return ret;
 }
 
+static int activate_reserved_uintr(struct irq_data *irqd)
+{
+	struct apic_chip_data *apicd = apic_chip_data(irqd);
+	int ret;
+
+	ret = assign_irq_vector_any_locked_uintr(irqd);
+	if (!ret) {
+		apicd->has_reserved = false;
+		/*
+		 * Core might have disabled reservation mode after
+		 * allocating the irq descriptor. Ideally this should
+		 * happen before allocation time, but that would require
+		 * completely convoluted ways of transporting that
+		 * information.
+		 */
+		if (!irqd_can_reserve(irqd))
+			apicd->can_reserve = false;
+	}
+
+	/*
+	 * Check to ensure that the effective affinity mask is a subset
+	 * the user supplied affinity mask, and warn the user if it is not
+	 */
+	if (!cpumask_subset(irq_data_get_effective_affinity_mask(irqd),
+			    irq_data_get_affinity_mask(irqd))) {
+		pr_warn("irq %u: Affinity broken due to vector space exhaustion.\n",
+			irqd->irq);
+	}
+
+	return ret;
+}
+
 static int activate_managed(struct irq_data *irqd)
 {
 	const struct cpumask *dest = irq_data_get_affinity_mask(irqd);
@@ -474,6 +573,30 @@ static int x86_vector_activate(struct irq_domain *dom, struct irq_data *irqd,
 	raw_spin_unlock_irqrestore(&vector_lock, flags);
 	return ret;
 }
+
+static int x86_vector_activate_uintr(struct irq_domain *dom, struct irq_data *irqd,
+	bool reserve)
+{
+struct apic_chip_data *apicd = apic_chip_data(irqd);
+unsigned long flags;
+int ret = 0;
+
+trace_vector_activate(irqd->irq, apicd->is_managed,
+   apicd->can_reserve, reserve);
+
+raw_spin_lock_irqsave(&vector_lock, flags);
+if (!apicd->can_reserve && !apicd->is_managed)
+assign_irq_vector_any_locked_uintr(irqd);
+else if (reserve || irqd_is_managed_and_shutdown(irqd))
+vector_assign_managed_shutdown(irqd);
+else if (apicd->is_managed)
+ret = activate_managed(irqd);
+else if (apicd->has_reserved)
+ret = activate_reserved_uintr(irqd);
+raw_spin_unlock_irqrestore(&vector_lock, flags);
+return ret;
+}
+
 
 static void vector_free_reserved_and_managed(struct irq_data *irqd)
 {
@@ -702,6 +825,7 @@ static const struct irq_domain_ops x86_vector_domain_ops = {
 	.alloc		= x86_vector_alloc_irqs,
 	.free		= x86_vector_free_irqs,
 	.activate	= x86_vector_activate,
+	.activate_uintr = x86_vector_activate_uintr,
 	.deactivate	= x86_vector_deactivate,
 #ifdef CONFIG_GENERIC_IRQ_DEBUGFS
 	.debug_show	= x86_vector_debug_show,

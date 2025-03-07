@@ -1896,6 +1896,38 @@ static int __irq_domain_activate_irq(struct irq_data *irqd, bool reserve)
 	return ret;
 }
 
+static int __irq_domain_activate_irq_uintr(struct irq_data *irqd, bool reserve)
+{
+	int ret = 0;
+
+	if (irqd && irqd->domain) {
+		struct irq_domain *domain = irqd->domain;
+
+		if (irqd->parent_data)
+			ret = __irq_domain_activate_irq_uintr(irqd->parent_data,
+							reserve);
+		if (!ret && domain->ops->activate) {
+			pr_info("uintr activate %lx\n", domain->ops->activate);
+			dump_stack();
+			if(domain->ops->activate_uintr)
+			{
+				pr_info("uintr activate_uintr %lx reserve %u\n", domain->ops->activate_uintr, reserve);
+				ret = domain->ops->activate_uintr(domain, irqd, reserve);
+				pr_info("uintr activate_uintr ret %d\n", ret);
+			}
+			else
+			{
+				pr_info("uintr activate %lx reserve %u\n", domain->ops->activate, reserve);
+				ret = domain->ops->activate(domain, irqd, reserve);
+			}
+			/* Rollback in case of error */
+			if (ret && irqd->parent_data)
+				__irq_domain_deactivate_irq(irqd->parent_data);
+		}
+	}
+	return ret;
+}
+
 /**
  * irq_domain_activate_irq - Call domain_ops->activate recursively to activate
  *			     interrupt
@@ -1915,6 +1947,27 @@ int irq_domain_activate_irq(struct irq_data *irq_data, bool reserve)
 		irqd_set_activated(irq_data);
 	return ret;
 }
+
+/**
+ * irq_domain_activate_irq_uintr - Call domain_ops->activate recursively to activate
+ *			     interrupt
+ * @irq_data:	Outermost irq_data associated with interrupt
+ * @reserve:	If set only reserve an interrupt vector instead of assigning one
+ *
+ * This is the second step to call domain_ops->activate to program interrupt
+ * controllers, so the interrupt could actually get delivered.
+ */
+ int irq_domain_activate_irq_uintr(struct irq_data *irq_data, bool reserve)
+ {
+	 int ret = 0;
+ 
+	 if (!irqd_is_activated(irq_data))
+		 ret = __irq_domain_activate_irq_uintr(irq_data, reserve);
+	 if (!ret)
+		 irqd_set_activated(irq_data);
+	 return ret;
+ }
+ 
 
 /**
  * irq_domain_deactivate_irq - Call domain_ops->deactivate recursively to

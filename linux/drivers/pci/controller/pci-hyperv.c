@@ -873,6 +873,7 @@ static int hv_pci_vec_irq_domain_alloc(struct irq_domain *domain,
 static int hv_pci_vec_irq_domain_activate(struct irq_domain *domain,
 					  struct irq_data *irqd, bool reserve)
 {
+	pr_info("hv Activating irq %d\n", irqd->hwirq);
 	int cpu = cpumask_first(cpu_present_mask);
 
 	irq_data_update_effective_affinity(irqd, cpumask_of(cpu));

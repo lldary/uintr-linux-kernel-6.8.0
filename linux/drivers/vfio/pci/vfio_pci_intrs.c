@@ -355,8 +355,8 @@ static irqreturn_t vfio_msihandler(int irq, void *arg)
 static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
 {
 	struct file *trigger = arg;
-
-	uintr_notify(trigger);
+	pr_info("do not run\n");
+	// uintr_notify(trigger);
 	return IRQ_HANDLED;
 }
 #endif
@@ -444,7 +444,7 @@ static int vfio_msi_alloc_irq_uintr(struct vfio_pci_core_device *vdev,
 		return irq;
 
 	cmd = vfio_pci_memory_lock_and_enable(vdev);
-	map = pci_msix_alloc_irq_at_uintr(pdev, vector, NULL);
+	map = pci_msix_alloc_irq_at(pdev, vector, NULL);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 
 	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n", map.virq, vector, msix);
@@ -616,7 +616,10 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		pci_write_msi_msg(irq, &msg);
 	}
 
-	ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
+	if(vector == 1)
+		ret = request_irq_uintr(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
+	else
+		ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
 	pr_info("vfio_msi_set_vector_signal_uintr: irq=%d, vector=%d, fd=%d ret=%d\n", irq, vector, fd, ret);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 	if (ret)

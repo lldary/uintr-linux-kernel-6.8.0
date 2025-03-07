@@ -1384,6 +1384,7 @@ static void intel_irq_remapping_free(struct irq_domain *domain,
 static int intel_irq_remapping_activate(struct irq_domain *domain,
 					struct irq_data *irq_data, bool reserve)
 {
+	pr_info("Activate irq %d\n", irq_data->irq);
 	intel_ir_reconfigure_irte(irq_data, true);
 	return 0;
 }

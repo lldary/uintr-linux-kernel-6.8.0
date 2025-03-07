@@ -102,6 +102,7 @@ struct irq_domain_ops {
 	void (*free)(struct irq_domain *d, unsigned int virq,
 		     unsigned int nr_irqs);
 	int (*activate)(struct irq_domain *d, struct irq_data *irqd, bool reserve);
+	int (*activate_uintr)(struct irq_domain *d, struct irq_data *irqd, bool reserve);
 	void (*deactivate)(struct irq_domain *d, struct irq_data *irq_data);
 	int (*translate)(struct irq_domain *d, struct irq_fwspec *fwspec,
 			 unsigned long *out_hwirq, unsigned int *out_type);
@@ -503,6 +504,7 @@ extern int __irq_domain_alloc_irqs_uintr(struct irq_domain *domain, int irq_base
 				   const struct irq_affinity_desc *affinity);
 extern void irq_domain_free_irqs(unsigned int virq, unsigned int nr_irqs);
 extern int irq_domain_activate_irq(struct irq_data *irq_data, bool early);
+extern int irq_domain_activate_irq_uintr(struct irq_data *irq_data, bool early);
 extern void irq_domain_deactivate_irq(struct irq_data *irq_data);
 
 static inline int irq_domain_alloc_irqs(struct irq_domain *domain,

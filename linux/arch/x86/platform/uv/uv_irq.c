@@ -125,6 +125,7 @@ static void uv_domain_free(struct irq_domain *domain, unsigned int virq,
 static int uv_domain_activate(struct irq_domain *domain,
 			      struct irq_data *irq_data, bool reserve)
 {
+	pr_info("UV: activating irq %d\n", irq_data->irq);
 	uv_program_mmr(irqd_cfg(irq_data), irq_data->chip_data);
 	return 0;
 }
