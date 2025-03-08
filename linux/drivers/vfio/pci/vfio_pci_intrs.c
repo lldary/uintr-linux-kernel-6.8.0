@@ -355,7 +355,7 @@ static irqreturn_t vfio_msihandler(int irq, void *arg)
 static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
 {
 	struct file *trigger = arg;
-	pr_info("do not run\n");
+	pr_info("do not run cpu %d irq %d\n", smp_processor_id(), irq);
 	// uintr_notify(trigger);
 	return IRQ_HANDLED;
 }
@@ -617,7 +617,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	}
 
 	if(vector == 1)
-		ret = request_irq_uintr(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
+		ret = request_irq_uintr(irq, vfio_msihandler_uintr, IRQF_NOBALANCING, ctx->name, trigger);
 	else
 		ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
 	pr_info("vfio_msi_set_vector_signal_uintr: irq=%d, vector=%d, fd=%d ret=%d\n", irq, vector, fd, ret);

@@ -98,7 +98,7 @@
 #endif
 
 /* Vector for User interrupt notifications */
-#define UINTR_NOTIFICATION_VECTOR       0xec
+#define UINTR_NOTIFICATION_VECTOR       38
 #define UINTR_KERNEL_VECTOR		0xeb
 #define UINTR_MSIX_VECTOR		38 // TODO: 要修改为一个合适的值
 
