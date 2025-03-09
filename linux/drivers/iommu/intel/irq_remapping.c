@@ -1138,6 +1138,8 @@ static void intel_ir_reconfigure_irte(struct irq_data *irqd, bool force)
 	 */
 	irte->vector = cfg->vector;
 	irte->dest_id = IRTE_DEST(cfg->dest_apicid);
+	pr_info("Reconfiguring IRTE for %d: vector %d, dest %d\n",
+		irqd->irq, cfg->vector, IRTE_DEST(cfg->dest_apicid));
 
 	/* Update the hardware only if the interrupt is in remapped mode. */
 	if (force || ir_data->irq_2_iommu.mode == IRQ_REMAPPING)

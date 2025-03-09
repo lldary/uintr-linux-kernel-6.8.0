@@ -373,6 +373,9 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_uintr_spurious_interrupt)
 	apic_eoi();
 	inc_irq_stat(uintr_spurious_count);
 
+	// pr_info("uintr: Spurious interrupt on %d\n",
+	// 		    smp_processor_id());
+
 	/*
 	 * Typically, we only expect wake-ups to happen using the kernel
 	 * notification. However, there might be a possibility that a process
@@ -396,7 +399,10 @@ DEFINE_IDTENTRY_SYSVEC(sysvec_uintr_kernel_notification)
 {
 	/* TODO: Add entry-exit tracepoints */
 	apic_eoi();
-	inc_irq_stat(uintr_kernel_notifications);	
+	inc_irq_stat(uintr_kernel_notifications);
+	
+	// pr_info("uintr: Kernel notification interrupt on %d\n",
+	// 		    smp_processor_id());
 
 	pr_debug_ratelimited("uintr: Kernel notification interrupt on %d\n",
 			     smp_processor_id());

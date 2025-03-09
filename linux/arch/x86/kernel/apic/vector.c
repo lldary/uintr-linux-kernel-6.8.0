@@ -139,6 +139,20 @@ static void apic_update_irq_cfg(struct irq_data *irqd, unsigned int vector,
 			    apicd->hw_irq_cfg.dest_apicid);
 }
 
+static void apic_update_irq_cfg_uintr(struct irq_data *irqd, unsigned int vector,
+	unsigned int cpu)
+{
+struct apic_chip_data *apicd = apic_chip_data(irqd);
+
+lockdep_assert_held(&vector_lock);
+cpu = smp_processor_id();
+apicd->hw_irq_cfg.vector = UINTR_MSIX_VECTOR;
+apicd->hw_irq_cfg.dest_apicid = apic->calc_dest_apicid(cpu);
+irq_data_update_effective_affinity(irqd, cpumask_of(cpu));
+trace_vector_config(irqd->irq, vector, cpu,
+	apicd->hw_irq_cfg.dest_apicid);
+}
+
 static void apic_update_vector(struct irq_data *irqd, unsigned int newvec,
 			       unsigned int newcpu)
 {
@@ -294,13 +308,13 @@ assign_vector_locked_uintr(struct irq_data *irqd, const struct cpumask *dest)
 	if (apicd->move_in_progress || !hlist_unhashed(&apicd->clist))
 		return -EBUSY;
 
-	vector = irq_matrix_alloc_uintr(vector_matrix, dest, resvd, &cpu);
+	vector = irq_matrix_alloc(vector_matrix, dest, resvd, &cpu);
 	pr_info("uintr vector = %d cpu = %d\n", vector, cpu);
 	trace_vector_alloc(irqd->irq, vector, resvd, vector);
 	if (vector < 0)
 		return vector;
 	apic_update_vector(irqd, vector, cpu);
-	apic_update_irq_cfg(irqd, vector, cpu);
+	apic_update_irq_cfg_uintr(irqd, vector, cpu);
 
 	return 0;
 }

@@ -1257,7 +1257,13 @@ static int uintr_receiver_wait(ktime_t *expires)
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	if (t.task)
-		schedule();
+		// schedule();
+	{
+		pr_info("recv: Pausing task=%d\n", current->pid);
+		// schedule();
+		asm volatile("hlt");
+		pr_info("recv: Resuming task=%d\n", current->pid);
+	}
 
 	hrtimer_cancel(&t.timer);
 	destroy_hrtimer_on_stack(&t.timer);
@@ -1271,6 +1277,62 @@ static int uintr_receiver_wait(ktime_t *expires)
 		 current->pid);
 
 	return !t.task ? 0 : -EINTR;
+}
+
+#include <linux/uaccess.h> // 提供用户态内存访问的工具
+
+// 临时禁用 SMAP
+static inline void disable_smap(void)
+{
+    unsigned long cr4;
+
+    // 保存当前 CR4 寄存器的值
+    asm volatile("mov %%cr4, %0" : "=r"(cr4));
+
+    // 清除 CR4 的第 21 位（SMAP 位）
+    cr4 &= ~(1UL << 21);
+
+    // 将修改后的值写回 CR4 寄存器
+    asm volatile("mov %0, %%cr4" : : "r"(cr4));
+}
+
+// 恢复 SMAP
+static inline void enable_smap(void)
+{
+    unsigned long cr4;
+
+    // 保存当前 CR4 寄存器的值
+    asm volatile("mov %%cr4, %0" : "=r"(cr4));
+
+    // 设置 CR4 的第 21 位（SMAP 位）
+    cr4 |= (1UL << 21);
+
+    // 将修改后的值写回 CR4 寄存器
+    asm volatile("mov %0, %%cr4" : : "r"(cr4));
+}
+
+static inline int monitor_mwait(void *addr) {
+    // pr_info("recv: Pausing task=%d addr %p\n", current->pid, addr);
+	// pr_info("recv: stop\n");
+	// int loop = 0;
+	// while(loop < 1000000) {
+		loop++;
+		disable_smap();
+		asm volatile (
+			"mov %0, %%rax\n\t"
+			"mov $0, %%rcx\n\t"
+			"monitor\n\t"
+			"mwait\n\t"
+			:
+			: "r"(addr)
+			: "rax", "rcx"
+		);
+		enable_smap();
+	// }
+	// asm volatile ("hlt");
+	// pr_info("recv: start\n");
+	// pr_info("recv: Resuming task=%d addr %p\n", current->pid, addr);
+	return 0;
 }
 
 /* For now, use a max value of 1000 seconds */
@@ -1292,15 +1354,16 @@ SYSCALL_DEFINE2(uintr_wait, u64, usec, unsigned int, flags)
 	if (flags)
 		return -EINVAL;
 
-	/* Check: Do we need an option for waiting indefinitely */
-	if (usec > UINTR_WAIT_MAX_USEC)
-		return -EINVAL;
+	// /* Check: Do we need an option for waiting indefinitely */
+	// if (usec > UINTR_WAIT_MAX_USEC)
+	// 	return -EINVAL;
 
 	if (usec == 0)
 		return 0;
 
-	expires = usec * NSEC_PER_USEC;
-	return uintr_receiver_wait(&expires);
+	// expires = usec * NSEC_PER_USEC;
+	// return uintr_receiver_wait(&expires);
+	return monitor_mwait((void*)usec);
 }
 
 static void uintr_switch_to_kernel_interrupt(struct uintr_upid_ctx *upid_ctx)
