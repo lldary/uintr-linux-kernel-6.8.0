@@ -467,6 +467,7 @@
 460	i386	lsm_set_self_attr	sys_lsm_set_self_attr
 461	i386	lsm_list_modules	sys_lsm_list_modules
 # Start UINTR syscalls at 471 to avoid upstream merge conflicts during development
+470 i386    uintr_wait_msix_interrupt sys_uintr_wait_msix_interrupt
 471	i386	uintr_register_handler	sys_uintr_register_handler
 472	i386	uintr_unregister_handler sys_uintr_unregister_handler
 473	i386	uintr_vector_fd		sys_uintr_vector_fd

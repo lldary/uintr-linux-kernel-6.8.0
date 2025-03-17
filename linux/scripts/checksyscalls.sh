@@ -201,6 +201,7 @@ cat << EOF
 #define __IGNORE__sysctl
 #define __IGNORE_arch_prctl
 #define __IGNORE_nfsservctl
+#define __IGNORE_uintr_wait_msix_interrupt
 #define __IGNORE_uintr_register_handler
 #define __IGNORE_uintr_unregister_handler
 #define __IGNORE_uintr_vector_fd

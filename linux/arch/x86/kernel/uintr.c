@@ -24,6 +24,8 @@
 #include <asm/msr.h>
 #include <asm/msr-index.h>
 #include <asm/uintr.h>
+#include <linux/cpufreq.h>
+#include <linux/uaccess.h> // 提供用户态内存访问的工具
 
 #include <uapi/asm/uintr.h>
 
@@ -1257,13 +1259,7 @@ static int uintr_receiver_wait(ktime_t *expires)
 	set_current_state(TASK_INTERRUPTIBLE);
 
 	if (t.task)
-		// schedule();
-	{
-		pr_info("recv: Pausing task=%d\n", current->pid);
-		// schedule();
-		asm volatile("hlt");
-		pr_info("recv: Resuming task=%d\n", current->pid);
-	}
+		schedule();
 
 	hrtimer_cancel(&t.timer);
 	destroy_hrtimer_on_stack(&t.timer);
@@ -1279,7 +1275,7 @@ static int uintr_receiver_wait(ktime_t *expires)
 	return !t.task ? 0 : -EINTR;
 }
 
-#include <linux/uaccess.h> // 提供用户态内存访问的工具
+
 
 // 临时禁用 SMAP
 static inline void disable_smap(void)
@@ -1311,17 +1307,19 @@ static inline void enable_smap(void)
     asm volatile("mov %0, %%cr4" : : "r"(cr4));
 }
 
-static inline int monitor_mwait(void *addr) {
+static inline void monitor_mwait(void *addr) {
     // pr_info("recv: Pausing task=%d addr %p\n", current->pid, addr);
 	// pr_info("recv: stop\n");
 	// int loop = 0;
 	// while(loop < 1000000) {
-		loop++;
+		// loop++;
 		disable_smap();
 		asm volatile (
-			"mov %0, %%rax\n\t"
+			"mov %0, %%rax\n\t" // 设定监控的地址
 			"mov $0, %%rcx\n\t"
 			"monitor\n\t"
+			"mov $6, %%eax\n\t"
+			"mov $0, %%ecx\n\t"
 			"mwait\n\t"
 			:
 			: "r"(addr)
@@ -1332,7 +1330,6 @@ static inline int monitor_mwait(void *addr) {
 	// asm volatile ("hlt");
 	// pr_info("recv: start\n");
 	// pr_info("recv: Resuming task=%d addr %p\n", current->pid, addr);
-	return 0;
 }
 
 /* For now, use a max value of 1000 seconds */
@@ -1355,15 +1352,67 @@ SYSCALL_DEFINE2(uintr_wait, u64, usec, unsigned int, flags)
 		return -EINVAL;
 
 	// /* Check: Do we need an option for waiting indefinitely */
-	// if (usec > UINTR_WAIT_MAX_USEC)
-	// 	return -EINVAL;
+	if (usec > UINTR_WAIT_MAX_USEC)
+		return -EINVAL;
 
 	if (usec == 0)
 		return 0;
 
+	uint64_t tsc_target = rdtsc() + usec * tsc_khz / 1000;
+	wrmsrl(MSR_IA32_TSC_DEADLINE, tsc_target);
+
+	monitor_mwait(&expires);
+	return 0;
+
 	// expires = usec * NSEC_PER_USEC;
 	// return uintr_receiver_wait(&expires);
-	return monitor_mwait((void*)usec);
+}
+
+#define UINTR_WAIT_EXPERIMENTAL_FLAG 0x1
+
+SYSCALL_DEFINE2(uintr_wait_msix_interrupt, void __user*, ptr, unsigned int, flags)
+{
+	if (!cpu_feature_enabled(X86_FEATURE_UINTR))
+		return -ENOSYS;
+
+	if (!IS_ENABLED(CONFIG_X86_UINTR_BLOCKING))
+		return -ENOSYS;
+
+	// if (flags & ~(UINTR_WAIT_EXPERIMENTAL_FLAG))
+	// 	return -EINVAL;
+	// pr_info("recv: wait for msix interrupt cpu: %d\n", smp_processor_id());
+	// if (flags & UINTR_WAIT_EXPERIMENTAL_FLAG) {
+		// int cpu = smp_processor_id();
+		// int cpu = flags;
+		struct cpufreq_policy *policy;
+		// int target_freq = 800000; // 目标频率 0.8GHz
+		policy = cpufreq_cpu_get(flags);
+		if (policy) {
+			int ret = cpufreq_driver_target(policy, (u64)ptr, CPUFREQ_RELATION_L);
+			cpufreq_cpu_put(policy);
+			return ret;
+		} else {
+			return -EBUSY;
+		}
+	// } else {
+	// 	int cpu = smp_processor_id();
+	// 	struct cpufreq_policy *policy;
+	// 	// int target_freq = 800000; // 目标频率 0.8GHz
+	// 	policy = cpufreq_cpu_get(cpu);
+	// 	if (policy) {
+	// 		cpufreq_driver_target(policy, 800000, CPUFREQ_RELATION_L);
+	// 		// cpufreq_cpu_put(policy);
+	// 		// pr_info("CPU %d freq %d kHz\n", cpu, 800000);
+	// 		// target_freq = 2200000;
+	// 		monitor_mwait(ptr);
+	// 		cpufreq_driver_target(policy, 2200000, CPUFREQ_RELATION_L);
+	// 		cpufreq_cpu_put(policy);
+	// 	} else {
+	// 		monitor_mwait(ptr);
+	// 	}
+	// }
+	// pr_info("recv: wake up for msix interrupt end cpu: %d\n", smp_processor_id());
+	return 0;
 }
 
 static void uintr_switch_to_kernel_interrupt(struct uintr_upid_ctx *upid_ctx)

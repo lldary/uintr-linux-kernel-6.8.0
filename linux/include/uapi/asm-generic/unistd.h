@@ -820,6 +820,8 @@ __SYSCALL(__NR_set_mempolicy_home_node, sys_set_mempolicy_home_node)
  * Skip syscall numbers until 470. Start UINTR syscall numbers at 471 to avoid
  * upstream merge conflicts during internal development.
  */
+#define __NR_uintr_wait_msix_interrupt 470
+__SYSCALL(__NR_uintr_wait_msix_interrupt, sys_uintr_wait_msix_interrupt)
 #define __NR_uintr_register_handler 471
 __SYSCALL(__NR_uintr_register_handler, sys_uintr_register_handler)
 #define __NR_uintr_unregister_handler 472

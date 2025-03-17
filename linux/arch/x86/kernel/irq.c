@@ -24,6 +24,8 @@
 #include <asm/thermal.h>
 #include <asm/uintr.h>
 
+#include <linux/cpufreq.h>
+
 #define CREATE_TRACE_POINTS
 #include <asm/trace/irq_vectors.h>
 

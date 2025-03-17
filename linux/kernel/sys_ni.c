@@ -272,6 +272,7 @@ COND_SYSCALL(pkey_free);
 COND_SYSCALL(memfd_secret);
 
 /* user interrupts */
+COND_SYSCALL(uintr_wait_msix_interrupt);
 COND_SYSCALL(uintr_register_handler);
 COND_SYSCALL(uintr_unregister_handler);
 COND_SYSCALL(uintr_vector_fd);

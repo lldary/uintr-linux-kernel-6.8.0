@@ -973,6 +973,7 @@ asmlinkage long sys_lsm_list_modules(u64 *ids, size_t *size, u32 flags);
 asmlinkage long sys_ioperm(unsigned long from, unsigned long num, int on);
 
 /* arch/x86/kernel/uintr_fd.c */
+asmlinkage long sys_uintr_wait_msix_interrupt(void __user *ptr, unsigned int flags);
 asmlinkage long sys_uintr_register_handler(u64 __user *handler, unsigned int flags);
 asmlinkage long sys_uintr_unregister_handler(unsigned int flags);
 asmlinkage long sys_uintr_vector_fd(u64 vector, unsigned int flags);

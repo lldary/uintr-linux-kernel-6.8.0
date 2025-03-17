@@ -384,6 +384,7 @@
 460	common	lsm_set_self_attr	sys_lsm_set_self_attr
 461	common	lsm_list_modules	sys_lsm_list_modules
 # Start UINTR syscalls at 471 to avoid upstream merge conflicts during development
+470 common  uintr_wait_msix_interrupt sys_uintr_wait_msix_interrupt
 471	common	uintr_register_handler	sys_uintr_register_handler
 472	common	uintr_unregister_handler sys_uintr_unregister_handler
 473	common	uintr_vector_fd		sys_uintr_vector_fd
