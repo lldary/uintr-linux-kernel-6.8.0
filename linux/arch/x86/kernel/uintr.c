@@ -1361,16 +1361,13 @@ SYSCALL_DEFINE2(uintr_wait, u64, usec, unsigned int, flags)
 	uint64_t tsc_target = rdtsc() + usec * tsc_khz / 1000;
 	wrmsrl(MSR_IA32_TSC_DEADLINE, tsc_target);
 
-	monitor_mwait(&expires);
-	return 0;
-
-	// expires = usec * NSEC_PER_USEC;
-	// return uintr_receiver_wait(&expires);
+	expires = usec * NSEC_PER_USEC;
+	return uintr_receiver_wait(&expires);
 }
 
 #define UINTR_WAIT_EXPERIMENTAL_FLAG 0x1
 
-SYSCALL_DEFINE2(uintr_wait_msix_interrupt, void __user*, ptr, unsigned int, flags)
+SYSCALL_DEFINE2(uintr_wait_msix_interrupt, void __user*, ptr, unsigned int, core_id)
 {
 	if (!cpu_feature_enabled(X86_FEATURE_UINTR))
 		return -ENOSYS;
@@ -1378,41 +1375,15 @@ SYSCALL_DEFINE2(uintr_wait_msix_interrupt, void __user*, ptr, unsigned int, flag
 	if (!IS_ENABLED(CONFIG_X86_UINTR_BLOCKING))
 		return -ENOSYS;
 
-	// if (flags & ~(UINTR_WAIT_EXPERIMENTAL_FLAG))
-	// 	return -EINVAL;
-	// pr_info("recv: wait for msix interrupt cpu: %d\n", smp_processor_id());
-	// if (flags & UINTR_WAIT_EXPERIMENTAL_FLAG) {
-		// int cpu = smp_processor_id();
-		// int cpu = flags;
-		struct cpufreq_policy *policy;
-		// int target_freq = 800000; // 目标频率 0.8GHz
-		policy = cpufreq_cpu_get(flags);
-		if (policy) {
-			int ret = cpufreq_driver_target(policy, (u64)ptr, CPUFREQ_RELATION_L);
-			cpufreq_cpu_put(policy);
-			return ret;
-		} else {
-			return -EBUSY;
-		}
-	// } else {
-	// 	int cpu = smp_processor_id();
-	// 	struct cpufreq_policy *policy;
-	// 	// int target_freq = 800000; // 目标频率 0.8GHz
-	// 	policy = cpufreq_cpu_get(cpu);
-	// 	if (policy) {
-	// 		cpufreq_driver_target(policy, 800000, CPUFREQ_RELATION_L);
-	// 		// cpufreq_cpu_put(policy);
-	// 		// pr_info("CPU %d freq %d kHz\n", cpu, 800000);
-	// 		// target_freq = 2200000;
-	// 		monitor_mwait(ptr);
-	// 		cpufreq_driver_target(policy, 2200000, CPUFREQ_RELATION_L);
-	// 		cpufreq_cpu_put(policy);
-	// 	} else {
-	// 		monitor_mwait(ptr);
-	// 	}
-	// }
-	// pr_info("recv: wake up for msix interrupt end cpu: %d\n", smp_processor_id());
-	return 0;
+	struct cpufreq_policy *policy;
+	policy = cpufreq_cpu_get(core_id);
+	if (policy) {
+		int ret = cpufreq_driver_target(policy, (u64)ptr, CPUFREQ_RELATION_L);
+		cpufreq_cpu_put(policy);
+		return ret;
+	} else {
+		return -EBUSY;
+	}
 }
 
 static void uintr_switch_to_kernel_interrupt(struct uintr_upid_ctx *upid_ctx)

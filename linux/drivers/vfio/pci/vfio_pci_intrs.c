@@ -616,7 +616,7 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		pci_write_msi_msg(irq, &msg);
 	}
 
-	if(vector == 1)
+	if(1)
 		ret = request_irq_uintr(irq, vfio_msihandler_uintr, IRQF_NOBALANCING, ctx->name, trigger);
 	else
 		ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
