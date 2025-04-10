@@ -1308,28 +1308,17 @@ static inline void enable_smap(void)
 }
 
 static inline void monitor_mwait(void *addr) {
-    // pr_info("recv: Pausing task=%d addr %p\n", current->pid, addr);
-	// pr_info("recv: stop\n");
-	// int loop = 0;
-	// while(loop < 1000000) {
-		// loop++;
-		disable_smap();
-		asm volatile (
-			"mov %0, %%rax\n\t" // 设定监控的地址
-			"mov $0, %%rcx\n\t"
-			"monitor\n\t"
-			"mov $6, %%eax\n\t"
-			"mov $0, %%ecx\n\t"
-			"mwait\n\t"
-			:
-			: "r"(addr)
-			: "rax", "rcx"
-		);
-		enable_smap();
-	// }
-	// asm volatile ("hlt");
-	// pr_info("recv: start\n");
-	// pr_info("recv: Resuming task=%d addr %p\n", current->pid, addr);
+	asm volatile (
+		"mov %0, %%rax\n\t" // 设定监控的地址
+		"mov $0, %%rcx\n\t"
+		"monitor\n\t"
+		"mov $6, %%eax\n\t"
+		"mov $0, %%ecx\n\t"
+		"mwait\n\t"
+		:
+		: "r"(addr)
+		: "rax", "rcx"
+	);
 }
 
 /* For now, use a max value of 1000 seconds */
@@ -1351,7 +1340,7 @@ SYSCALL_DEFINE2(uintr_wait, u64, usec, unsigned int, flags)
 	if (flags)
 		return -EINVAL;
 
-	// /* Check: Do we need an option for waiting indefinitely */
+	/* Check: Do we need an option for waiting indefinitely */
 	if (usec > UINTR_WAIT_MAX_USEC)
 		return -EINVAL;
 
@@ -1361,8 +1350,12 @@ SYSCALL_DEFINE2(uintr_wait, u64, usec, unsigned int, flags)
 	uint64_t tsc_target = rdtsc() + usec * tsc_khz / 1000;
 	wrmsrl(MSR_IA32_TSC_DEADLINE, tsc_target);
 
-	expires = usec * NSEC_PER_USEC;
-	return uintr_receiver_wait(&expires);
+	monitor_mwait((void *)current);
+
+	return 0;
+
+	// expires = usec * NSEC_PER_USEC;
+	// return uintr_receiver_wait(&expires);
 }
 
 #define UINTR_WAIT_EXPERIMENTAL_FLAG 0x1
