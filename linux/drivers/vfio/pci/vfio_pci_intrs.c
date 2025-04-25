@@ -26,6 +26,11 @@
 
 #include "vfio_pci_priv.h"
 
+enum vfio_pci_irq_type {
+	VFIO_PCI_INT_IRQ,
+	VFIO_PCI_UINTR_IRQ,
+};
+
 struct vfio_pci_irq_ctx {
 	struct eventfd_ctx	*trigger;
 	struct file	*uintr_trigger;
@@ -65,6 +70,18 @@ static void vfio_irq_ctx_free(struct vfio_pci_core_device *vdev,
 {
 	xa_erase(&vdev->ctx, index);
 	kfree(ctx);
+}
+
+static void vfio_irq_free(int irq, struct vfio_pci_irq_ctx *ctx, enum vfio_pci_irq_type type)
+{
+	switch(type) {
+		case VFIO_PCI_INT_IRQ:
+			free_irq(irq, ctx->trigger);
+			break;
+		case VFIO_PCI_UINTR_IRQ:
+			free_irq(irq, ctx->uintr_trigger);
+			break;
+	}
 }
 
 static struct vfio_pci_irq_ctx *
@@ -355,7 +372,7 @@ static irqreturn_t vfio_msihandler(int irq, void *arg)
 static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
 {
 	struct file *trigger = arg;
-	pr_info("do not run cpu %d irq %d\n", smp_processor_id(), irq);
+	pr_err("do not run cpu %d irq %d\n", smp_processor_id(), irq);
 	// uintr_notify(trigger);
 	return IRQ_HANDLED;
 }
@@ -467,7 +484,9 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 		irq_bypass_unregister_producer(&ctx->producer);
 		irq = pci_irq_vector(pdev, vector);
 		cmd = vfio_pci_memory_lock_and_enable(vdev);
-		free_irq(irq, ctx->trigger);
+		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ? VFIO_PCI_UINTR_IRQ : VFIO_PCI_INT_IRQ;
+		vfio_irq_free(irq, ctx, irq_type);
+		// free_irq(irq, ctx->trigger);
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
@@ -476,6 +495,8 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 		if(ctx->uintr_trigger)
 			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
+		ctx->trigger = NULL;
+		ctx->uintr_trigger = NULL;
 	}
 
 	if (fd < 0)
@@ -563,7 +584,9 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		irq_bypass_unregister_producer(&ctx->producer);
 		irq = pci_irq_vector(pdev, vector);
 		cmd = vfio_pci_memory_lock_and_enable(vdev);
-		free_irq(irq, ctx->trigger);
+		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ? VFIO_PCI_UINTR_IRQ : VFIO_PCI_INT_IRQ;
+		vfio_irq_free(irq, ctx, irq_type);
+		// free_irq(irq, ctx->trigger);
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
@@ -572,6 +595,8 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		if(ctx->uintr_trigger)
 			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
+		ctx->trigger = NULL;
+		ctx->uintr_trigger = NULL;
 	}
 
 	if (fd < 0)
