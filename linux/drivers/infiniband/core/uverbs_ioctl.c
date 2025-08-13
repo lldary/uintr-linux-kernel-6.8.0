@@ -417,7 +417,7 @@ static int uverbs_set_attr(struct bundle_priv *pbundle,
 
 	return 0;
 }
-
+/* ioctl 处理函数 */
 static int ib_uverbs_run_method(struct bundle_priv *pbundle,
 				unsigned int num_attrs)
 {
@@ -609,7 +609,7 @@ static int ib_uverbs_cmd_verbs(struct ib_uverbs_file *ufile,
 	bundle_destroy(pbundle, ret == 0);
 	return ret;
 }
-
+/* rdma-cq 创建关键函数 */
 long ib_uverbs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct ib_uverbs_file *file = filp->private_data;

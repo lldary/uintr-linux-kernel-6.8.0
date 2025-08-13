@@ -16,11 +16,11 @@
 #include "vfio.h"
 
 static struct vfio {
-	struct class			*class;
-	struct list_head		group_list;
-	struct mutex			group_lock; /* locks group_list */
-	struct ida			group_ida;
-	dev_t				group_devt;
+	struct class *class;
+	struct list_head group_list;
+	struct mutex group_lock; /* locks group_list */
+	struct ida group_ida;
+	dev_t group_devt;
 } vfio;
 
 static struct vfio_device *vfio_device_get_from_name(struct vfio_group *group,
@@ -187,7 +187,8 @@ static int vfio_df_group_open(struct vfio_device_file *df)
 		vfio_device_group_get_kvm_safe(device);
 
 	df->iommufd = device->group->iommufd;
-	if (df->iommufd && vfio_device_is_noiommu(device) && device->open_count == 0) {
+	if (df->iommufd && vfio_device_is_noiommu(device) &&
+	    device->open_count == 0) {
 		/*
 		 * Require no compat ioas to be assigned to proceed.  The basic
 		 * statement is that the user cannot have done something that
@@ -272,8 +273,8 @@ static struct file *vfio_device_open_file(struct vfio_device *device)
 	 * We can't use anon_inode_getfd() because we need to modify
 	 * the f_mode flags directly to allow more than just ioctls
 	 */
-	filep = anon_inode_getfile("[vfio-device]", &vfio_device_fops,
-				   df, O_RDWR);
+	filep = anon_inode_getfile("[vfio-device]", &vfio_device_fops, df,
+				   O_RDWR);
 	if (IS_ERR(filep)) {
 		ret = PTR_ERR(filep);
 		goto err_close_device;
@@ -287,8 +288,10 @@ static struct file *vfio_device_open_file(struct vfio_device *device)
 	filep->f_mode |= (FMODE_PREAD | FMODE_PWRITE);
 
 	if (device->group->type == VFIO_NO_IOMMU)
-		dev_warn(device->dev, "vfio-noiommu device opened by user "
-			 "(%s:%d)\n", current->comm, task_pid_nr(current));
+		dev_warn(device->dev,
+			 "vfio-noiommu device opened by user "
+			 "(%s:%d)\n",
+			 current->comm, task_pid_nr(current));
 	/*
 	 * On success the ref of device is moved to the file and
 	 * put in vfio_device_fops_release()
@@ -302,7 +305,7 @@ err_free:
 err_out:
 	return ERR_PTR(ret);
 }
-
+/* 该函数的作用是：为指定 VFIO group 下的某个设备分配并返回一个新的文件描述符（fd），以便用户空间后续通过该 fd 操作该设备 */
 static int vfio_group_ioctl_get_device_fd(struct vfio_group *group,
 					  char __user *arg)
 {
@@ -382,8 +385,8 @@ static int vfio_group_ioctl_get_status(struct vfio_group *group,
 	return 0;
 }
 
-static long vfio_group_fops_unl_ioctl(struct file *filep,
-				      unsigned int cmd, unsigned long arg)
+static long vfio_group_fops_unl_ioctl(struct file *filep, unsigned int cmd,
+				      unsigned long arg)
 {
 	struct vfio_group *group = filep->private_data;
 	void __user *uarg = (void __user *)arg;
@@ -495,11 +498,11 @@ static int vfio_group_fops_release(struct inode *inode, struct file *filep)
 }
 
 static const struct file_operations vfio_group_fops = {
-	.owner		= THIS_MODULE,
-	.unlocked_ioctl	= vfio_group_fops_unl_ioctl,
-	.compat_ioctl	= compat_ptr_ioctl,
-	.open		= vfio_group_fops_open,
-	.release	= vfio_group_fops_release,
+	.owner = THIS_MODULE,
+	.unlocked_ioctl = vfio_group_fops_unl_ioctl,
+	.compat_ioctl = compat_ptr_ioctl,
+	.open = vfio_group_fops_open,
+	.release = vfio_group_fops_release,
 };
 
 /*
@@ -573,7 +576,7 @@ static struct vfio_group *vfio_group_alloc(struct iommu_group *iommu_group,
 }
 
 static struct vfio_group *vfio_create_group(struct iommu_group *iommu_group,
-		enum vfio_group_type type)
+					    enum vfio_group_type type)
 {
 	struct vfio_group *group;
 	struct vfio_group *ret;
@@ -609,7 +612,7 @@ err_put:
 }
 
 static struct vfio_group *vfio_noiommu_group_alloc(struct device *dev,
-		enum vfio_group_type type)
+						   enum vfio_group_type type)
 {
 	struct iommu_group *iommu_group;
 	struct vfio_group *group;
@@ -674,7 +677,9 @@ static struct vfio_group *vfio_group_find_or_alloc(struct device *dev)
 		group = vfio_noiommu_group_alloc(dev, VFIO_NO_IOMMU);
 		if (!IS_ERR(group)) {
 			add_taint(TAINT_USER, LOCKDEP_STILL_OK);
-			dev_warn(dev, "Adding kernel taint for vfio-noiommu group on device\n");
+			dev_warn(
+				dev,
+				"Adding kernel taint for vfio-noiommu group on device\n");
 		}
 		return group;
 	}
@@ -699,8 +704,7 @@ static struct vfio_group *vfio_group_find_or_alloc(struct device *dev)
 	return group;
 }
 
-int vfio_device_set_group(struct vfio_device *device,
-			  enum vfio_group_type type)
+int vfio_device_set_group(struct vfio_device *device, enum vfio_group_type type)
 {
 	struct vfio_group *group;
 

@@ -1921,6 +1921,9 @@ static int ioapic_set_affinity(struct irq_data *irq_data,
 	unsigned long flags;
 	int ret;
 
+	if(parent->chip->irq_set_affinity_uintr)
+		ret = parent->chip->irq_set_affinity_uintr(parent, mask, force);
+	else
 	ret = parent->chip->irq_set_affinity(parent, mask, force);
 	raw_spin_lock_irqsave(&ioapic_lock, flags);
 	if (ret >= 0 && ret != IRQ_SET_MASK_OK_DONE)

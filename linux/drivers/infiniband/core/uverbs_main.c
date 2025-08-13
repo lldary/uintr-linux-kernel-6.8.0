@@ -676,7 +676,7 @@ static ssize_t ib_uverbs_write(struct file *filp, const char __user *buf,
 
 	}
 
-	ret = method_elm->handler(&bundle);
+	ret = method_elm->handler(&bundle); // 调用处理函数
 	if (bundle.uobject)
 		uverbs_finalize_object(bundle.uobject, UVERBS_ACCESS_NEW, true,
 				       !ret, &bundle);

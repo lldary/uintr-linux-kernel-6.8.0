@@ -249,6 +249,11 @@ static void irq_set_name(struct mlx5_irq_pool *pool, char *name, int vecidx)
 	snprintf(name, MLX5_MAX_IRQ_NAME, "mlx5_comp%d", vecidx);
 }
 
+struct irq_data* mlx5_get_irq_data(const struct mlx5_irq* irq){
+	return irq_get_irq_data(irq->map.virq);
+}
+
+/* 最关键函数 */
 struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
 				struct irq_affinity_desc *af_desc,
 				struct cpu_rmap **rmap)
@@ -273,7 +278,7 @@ struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
 		irq->map.virq = pci_irq_vector(dev->pdev, i);
 		irq->map.index = i;
 	} else {
-		irq->map = pci_msix_alloc_irq_at(dev->pdev, MSI_ANY_INDEX, af_desc);
+		irq->map = pci_msix_alloc_irq_at(dev->pdev, MSI_ANY_INDEX, af_desc); // TODO: 需要替换
 		if (!irq->map.virq) {
 			err = irq->map.index;
 			goto err_alloc_irq;
@@ -295,7 +300,8 @@ struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
 	snprintf(irq->name, MLX5_MAX_IRQ_FORMATTED_NAME,
 		 MLX5_IRQ_NAME_FORMAT_STR, name, pci_name(dev->pdev));
 	err = request_irq(irq->map.virq, irq_int_handler, 0, irq->name,
-			  &irq->nh);
+			  &irq->nh); // TODO: 需要替换
+	pr_info("mlx5_irq_alloc will alloc irq offset: %d name: %s\n", i, name);
 	if (err) {
 		mlx5_core_err(dev, "Failed to request irq. err = %d\n", err);
 		goto err_req_irq;

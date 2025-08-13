@@ -32,13 +32,13 @@ enum vfio_pci_irq_type {
 };
 
 struct vfio_pci_irq_ctx {
-	struct eventfd_ctx	*trigger;
-	struct file	*uintr_trigger;
-	struct virqfd		*unmask;
-	struct virqfd		*mask;
-	char			*name;
-	bool			masked;
-	struct irq_bypass_producer	producer;
+	struct eventfd_ctx *trigger;
+	struct file *uintr_trigger;
+	struct virqfd *unmask;
+	struct virqfd *mask;
+	char *name;
+	bool masked;
+	struct irq_bypass_producer producer;
 };
 
 static bool irq_is(struct vfio_pci_core_device *vdev, int type)
@@ -58,9 +58,8 @@ static bool is_irq_none(struct vfio_pci_core_device *vdev)
 		 vdev->irq_type == VFIO_PCI_MSIX_IRQ_INDEX);
 }
 
-static
-struct vfio_pci_irq_ctx *vfio_irq_ctx_get(struct vfio_pci_core_device *vdev,
-					  unsigned long index)
+static struct vfio_pci_irq_ctx *
+vfio_irq_ctx_get(struct vfio_pci_core_device *vdev, unsigned long index)
 {
 	return xa_load(&vdev->ctx, index);
 }
@@ -72,15 +71,16 @@ static void vfio_irq_ctx_free(struct vfio_pci_core_device *vdev,
 	kfree(ctx);
 }
 
-static void vfio_irq_free(int irq, struct vfio_pci_irq_ctx *ctx, enum vfio_pci_irq_type type)
+static void vfio_irq_free(int irq, struct vfio_pci_irq_ctx *ctx,
+			  enum vfio_pci_irq_type type)
 {
-	switch(type) {
-		case VFIO_PCI_INT_IRQ:
-			free_irq(irq, ctx->trigger);
-			break;
-		case VFIO_PCI_UINTR_IRQ:
-			free_irq(irq, ctx->uintr_trigger);
-			break;
+	switch (type) {
+	case VFIO_PCI_INT_IRQ:
+		free_irq(irq, ctx->trigger);
+		break;
+	case VFIO_PCI_UINTR_IRQ:
+		free_irq(irq, ctx->uintr_trigger);
+		break;
 	}
 }
 
@@ -239,7 +239,7 @@ static irqreturn_t vfio_intx_handler(int irq, void *dev_id)
 		disable_irq_nosync(vdev->pdev->irq);
 		ctx->masked = true;
 		ret = IRQ_HANDLED;
-	} else if (!ctx->masked &&  /* may be shared */
+	} else if (!ctx->masked && /* may be shared */
 		   pci_check_and_mask_intx(vdev->pdev)) {
 		ctx->masked = true;
 		ret = IRQ_HANDLED;
@@ -305,8 +305,8 @@ static int vfio_intx_set_signal(struct vfio_pci_core_device *vdev, int fd)
 	if (fd < 0) /* Disable only */
 		return 0;
 
-	ctx->name = kasprintf(GFP_KERNEL_ACCOUNT, "vfio-intx(%s)",
-			      pci_name(pdev));
+	ctx->name =
+		kasprintf(GFP_KERNEL_ACCOUNT, "vfio-intx(%s)", pci_name(pdev));
 	if (!ctx->name)
 		return -ENOMEM;
 
@@ -321,8 +321,8 @@ static int vfio_intx_set_signal(struct vfio_pci_core_device *vdev, int fd)
 	if (!vdev->pci_2_3)
 		irqflags = 0;
 
-	ret = request_irq(pdev->irq, vfio_intx_handler,
-			  irqflags, ctx->name, vdev);
+	ret = request_irq(pdev->irq, vfio_intx_handler, irqflags, ctx->name,
+			  vdev);
 	if (ret) {
 		ctx->trigger = NULL;
 		kfree(ctx->name);
@@ -378,7 +378,8 @@ static irqreturn_t vfio_msihandler_uintr(int irq, void *arg)
 }
 #endif
 
-static int vfio_msi_enable(struct vfio_pci_core_device *vdev, int nvec, bool msix)
+static int vfio_msi_enable(struct vfio_pci_core_device *vdev, int nvec,
+			   bool msix)
 {
 	struct pci_dev *pdev = vdev->pdev;
 	unsigned int flag = msix ? PCI_IRQ_MSIX : PCI_IRQ_MSI;
@@ -441,13 +442,14 @@ static int vfio_msi_alloc_irq(struct vfio_pci_core_device *vdev,
 	map = pci_msix_alloc_irq_at(pdev, vector, NULL);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 
-	pr_info("vfio_msi_alloc_irq: alloc irq=%d, vector=%d, msix=%d\n", map.virq, vector, msix);
+	pr_info("vfio_msi_alloc_irq: alloc irq=%d, vector=%d, msix=%d\n",
+		map.virq, vector, msix);
 
 	return map.index < 0 ? map.index : map.virq;
 }
 
 static int vfio_msi_alloc_irq_uintr(struct vfio_pci_core_device *vdev,
-			      unsigned int vector, bool msix)
+				    unsigned int vector, bool msix)
 {
 	struct pci_dev *pdev = vdev->pdev;
 	struct msi_map map;
@@ -464,7 +466,8 @@ static int vfio_msi_alloc_irq_uintr(struct vfio_pci_core_device *vdev,
 	map = pci_msix_alloc_irq_at(pdev, vector, NULL);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 
-	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n", map.virq, vector, msix);
+	pr_info("vfio_msi_alloc_irq_uintr: alloc irq=%d, vector=%d, msix=%d\n",
+		map.virq, vector, msix);
 
 	return map.index < 0 ? map.index : map.virq;
 }
@@ -484,15 +487,17 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 		irq_bypass_unregister_producer(&ctx->producer);
 		irq = pci_irq_vector(pdev, vector);
 		cmd = vfio_pci_memory_lock_and_enable(vdev);
-		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ? VFIO_PCI_UINTR_IRQ : VFIO_PCI_INT_IRQ;
+		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ?
+							  VFIO_PCI_UINTR_IRQ :
+							  VFIO_PCI_INT_IRQ;
 		vfio_irq_free(irq, ctx, irq_type);
 		// free_irq(irq, ctx->trigger);
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
-		if(ctx->trigger)
+		if (ctx->trigger)
 			eventfd_ctx_put(ctx->trigger);
-		if(ctx->uintr_trigger)
+		if (ctx->uintr_trigger)
 			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
 		ctx->trigger = NULL;
@@ -548,9 +553,10 @@ static int vfio_msi_set_vector_signal(struct vfio_pci_core_device *vdev,
 	ctx->producer.irq = irq;
 	ret = irq_bypass_register_producer(&ctx->producer);
 	if (unlikely(ret)) {
-		dev_info(&pdev->dev,
-		"irq bypass producer (token %p) registration fails: %d\n",
-		ctx->producer.token, ret);
+		dev_info(
+			&pdev->dev,
+			"irq bypass producer (token %p) registration fails: %d\n",
+			ctx->producer.token, ret);
 
 		ctx->producer.token = NULL;
 	}
@@ -568,9 +574,36 @@ out_free_ctx:
 	return ret;
 }
 
+static int vfio_msi_set_vector_enable(struct vfio_pci_core_device *vdev,
+				      unsigned int vector, bool mask, bool msix)
+{
+	struct pci_dev *pdev = vdev->pdev;
+	struct vfio_pci_irq_ctx *ctx;
+	struct file *trigger;
+	int irq = -EINVAL, ret;
+
+	ctx = vfio_irq_ctx_get(vdev, vector);
+
+	if (ctx == NULL) {
+		pr_err("vfio_msi_set_vector_enable: ctx is NULL\n");
+		return -EINVAL;
+	}
+	if (msix == false) {
+		pr_err("vfio_msi_set_vector_enable: msix is false\n");
+		return -EINVAL;
+	}
+	irq = pci_irq_vector(pdev, vector);
+	if (mask)
+		pci_mask_msix(irq);
+	else
+		pci_unmask_msix(irq);
+	return 0;
+}
+
 #ifdef CONFIG_X86_USER_INTERRUPTS
 static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
-				      unsigned int vector, int fd, bool msix)
+					    unsigned int vector, int fd,
+					    bool msix)
 {
 	struct pci_dev *pdev = vdev->pdev;
 	struct vfio_pci_irq_ctx *ctx;
@@ -584,15 +617,17 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		irq_bypass_unregister_producer(&ctx->producer);
 		irq = pci_irq_vector(pdev, vector);
 		cmd = vfio_pci_memory_lock_and_enable(vdev);
-		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ? VFIO_PCI_UINTR_IRQ : VFIO_PCI_INT_IRQ;
+		enum vfio_pci_irq_type irq_type = ctx->uintr_trigger ?
+							  VFIO_PCI_UINTR_IRQ :
+							  VFIO_PCI_INT_IRQ;
 		vfio_irq_free(irq, ctx, irq_type);
 		// free_irq(irq, ctx->trigger);
 		vfio_pci_memory_unlock_and_restore(vdev, cmd);
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		kfree(ctx->name);
-		if(ctx->trigger)
+		if (ctx->trigger)
 			eventfd_ctx_put(ctx->trigger);
-		if(ctx->uintr_trigger)
+		if (ctx->uintr_trigger)
 			fput(ctx->uintr_trigger);
 		vfio_irq_ctx_free(vdev, ctx, vector);
 		ctx->trigger = NULL;
@@ -605,7 +640,8 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	if (irq == -EINVAL) {
 		/* Interrupt stays allocated, will be freed at MSI-X disable. */
 		irq = vfio_msi_alloc_irq_uintr(vdev, vector, msix);
-		pr_info("vfio_msi_set_vector_signal_uintr: not alloc irq irq=%d, vector=%d, fd=%d\n",irq , vector, fd);
+		pr_info("vfio_msi_set_vector_signal_uintr: not alloc irq irq=%d, vector=%d, fd=%d\n",
+			irq, vector, fd);
 		if (irq < 0)
 			return irq;
 	}
@@ -641,11 +677,14 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 		pci_write_msi_msg(irq, &msg);
 	}
 
-	if(1)
-		ret = request_irq_uintr(irq, vfio_msihandler_uintr, IRQF_NOBALANCING, ctx->name, trigger);
+	if (1)
+		ret = request_irq_uintr(irq, vfio_msihandler_uintr,
+					IRQF_NOBALANCING, ctx->name, trigger);
 	else
-		ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name, trigger);
-	pr_info("vfio_msi_set_vector_signal_uintr: irq=%d, vector=%d, fd=%d ret=%d\n", irq, vector, fd, ret);
+		ret = request_irq(irq, vfio_msihandler_uintr, 0, ctx->name,
+				  trigger);
+	pr_info("vfio_msi_set_vector_signal_uintr: irq=%d, vector=%d, fd=%d ret=%d\n",
+		irq, vector, fd, ret);
 	vfio_pci_memory_unlock_and_restore(vdev, cmd);
 	if (ret)
 		goto out_put_eventfd_ctx;
@@ -654,9 +693,10 @@ static int vfio_msi_set_vector_signal_uintr(struct vfio_pci_core_device *vdev,
 	ctx->producer.irq = irq;
 	ret = irq_bypass_register_producer(&ctx->producer);
 	if (unlikely(ret)) {
-		dev_info(&pdev->dev,
-		"irq bypass producer (token %p) registration fails: %d\n",
-		ctx->producer.token, ret);
+		dev_info(
+			&pdev->dev,
+			"irq bypass producer (token %p) registration fails: %d\n",
+			ctx->producer.token, ret);
 
 		ctx->producer.token = NULL;
 	}
@@ -694,9 +734,29 @@ static int vfio_msi_set_block(struct vfio_pci_core_device *vdev, unsigned start,
 	return ret;
 }
 
+static int vfio_msi_control_mask(struct vfio_pci_core_device *vdev,
+				 unsigned start, unsigned count, bool mask,
+				 bool msix)
+{
+	unsigned int i, j;
+	int ret = 0;
+
+	for (i = 0, j = start; i < count && !ret; i++, j++) {
+		ret = vfio_msi_set_vector_enable(vdev, j, mask, msix);
+	}
+
+	if (ret) {
+		for (i = start; i < j; i++)
+			vfio_msi_set_vector_enable(vdev, i, -1, msix);
+	}
+
+	return ret;
+}
+
 #ifdef CONFIG_X86_USER_INTERRUPTS
-static int vfio_msi_set_block_uintr(struct vfio_pci_core_device *vdev, unsigned start,
-			      unsigned count, int32_t *fds, bool msix)
+static int vfio_msi_set_block_uintr(struct vfio_pci_core_device *vdev,
+				    unsigned start, unsigned count,
+				    int32_t *fds, bool msix)
 {
 	unsigned int i, j;
 	int ret = 0;
@@ -793,7 +853,7 @@ static int vfio_pci_set_intx_unmask(struct vfio_pci_core_device *vdev,
 		if (WARN_ON_ONCE(!ctx))
 			return -EINVAL;
 		if (fd >= 0)
-			return vfio_virqfd_enable((void *) vdev,
+			return vfio_virqfd_enable((void *)vdev,
 						  vfio_pci_intx_unmask_handler,
 						  vfio_send_intx_eventfd, NULL,
 						  &ctx->unmask, fd);
@@ -867,6 +927,68 @@ static int vfio_pci_set_intx_trigger(struct vfio_pci_core_device *vdev,
 	return 0;
 }
 
+static int vfio_pci_control_msix_mask(struct vfio_pci_core_device *vdev,
+				      unsigned index, unsigned start,
+				      unsigned count, uint32_t flags,
+				      void *data)
+{
+	struct vfio_pci_irq_ctx *ctx;
+	unsigned int i;
+	bool msix = (index == VFIO_PCI_MSIX_IRQ_INDEX) ? true : false;
+
+	if (irq_is(vdev, index) && !count && (flags & VFIO_IRQ_SET_DATA_NONE)) {
+		return 0;
+	}
+
+	if (!(irq_is(vdev, index) || is_irq_none(vdev)))
+		return -EINVAL;
+
+	if (flags & VFIO_IRQ_SET_DATA_NONE) {
+		pr_info("vfio_pci_intrs.c: vfio_pci_control_msix_mask: flags & VFIO_IRQ_SET_DATA_EVENTFD entry\n");
+		int ret;
+
+		if (vdev->irq_type == index)
+			return vfio_msi_control_mask(vdev, start, count, true,
+						     msix);
+
+		ret = vfio_msi_control_mask(vdev, start, count, true, msix);
+
+		return ret;
+	}
+	return -EINVAL;
+}
+
+static int vfio_pci_control_msix_unmask(struct vfio_pci_core_device *vdev,
+					unsigned index, unsigned start,
+					unsigned count, uint32_t flags,
+					void *data)
+{
+	struct vfio_pci_irq_ctx *ctx;
+	unsigned int i;
+	bool msix = (index == VFIO_PCI_MSIX_IRQ_INDEX) ? true : false;
+
+	if (irq_is(vdev, index) && !count && (flags & VFIO_IRQ_SET_DATA_NONE)) {
+		return 0;
+	}
+
+	if (!(irq_is(vdev, index) || is_irq_none(vdev)))
+		return -EINVAL;
+
+	if (flags & VFIO_IRQ_SET_DATA_NONE) {
+		pr_info("vfio_pci_intrs.c: vfio_pci_control_msix_unmask: flags & VFIO_IRQ_SET_DATA_EVENTFD entry\n");
+		int ret;
+
+		if (vdev->irq_type == index)
+			return vfio_msi_control_mask(vdev, start, count, false,
+						     msix);
+
+		ret = vfio_msi_control_mask(vdev, start, count, false, msix);
+
+		return ret;
+	}
+	return -EINVAL;
+}
+
 static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 				    unsigned index, unsigned start,
 				    unsigned count, uint32_t flags, void *data)
@@ -889,8 +1011,8 @@ static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 		int ret;
 
 		if (vdev->irq_type == index)
-			return vfio_msi_set_block(vdev, start, count,
-						  fds, msix);
+			return vfio_msi_set_block(vdev, start, count, fds,
+						  msix);
 
 		ret = vfio_msi_enable(vdev, start + count, msix);
 		if (ret)
@@ -911,16 +1033,18 @@ static int vfio_pci_set_msi_trigger(struct vfio_pci_core_device *vdev,
 		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: flags & VFIO_IRQ_SET_DATA_UINTRFD entry\n");
 
 		if (vdev->irq_type == index)
-			return vfio_msi_set_block_uintr(vdev, start, count,
-						  fds, msix);
+			return vfio_msi_set_block_uintr(vdev, start, count, fds,
+							msix);
 
 		ret = vfio_msi_enable(vdev, start + count, msix);
-		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n", ret);
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n",
+			ret);
 		if (ret)
 			return ret;
 
 		ret = vfio_msi_set_block_uintr(vdev, start, count, fds, msix);
-		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n", ret);
+		pr_info("vfio_pci_intrs.c: vfio_pci_set_msi_trigger: ret %d\n",
+			ret);
 		if (ret)
 			vfio_msi_disable_uintr(vdev, msix);
 
@@ -1008,8 +1132,8 @@ static int vfio_pci_set_err_trigger(struct vfio_pci_core_device *vdev,
 	if (index != VFIO_PCI_ERR_IRQ_INDEX || start != 0 || count > 1)
 		return -EINVAL;
 
-	return vfio_pci_set_ctx_trigger_single(&vdev->err_trigger,
-					       count, flags, data);
+	return vfio_pci_set_ctx_trigger_single(&vdev->err_trigger, count, flags,
+					       data);
 }
 
 static int vfio_pci_set_req_trigger(struct vfio_pci_core_device *vdev,
@@ -1019,8 +1143,8 @@ static int vfio_pci_set_req_trigger(struct vfio_pci_core_device *vdev,
 	if (index != VFIO_PCI_REQ_IRQ_INDEX || start != 0 || count > 1)
 		return -EINVAL;
 
-	return vfio_pci_set_ctx_trigger_single(&vdev->req_trigger,
-					       count, flags, data);
+	return vfio_pci_set_ctx_trigger_single(&vdev->req_trigger, count, flags,
+					       data);
 }
 
 int vfio_pci_set_irqs_ioctl(struct vfio_pci_core_device *vdev, uint32_t flags,
@@ -1051,8 +1175,11 @@ int vfio_pci_set_irqs_ioctl(struct vfio_pci_core_device *vdev, uint32_t flags,
 	case VFIO_PCI_MSIX_IRQ_INDEX:
 		switch (flags & VFIO_IRQ_SET_ACTION_TYPE_MASK) {
 		case VFIO_IRQ_SET_ACTION_MASK:
+			func = vfio_pci_control_msix_mask;
+			break;
 		case VFIO_IRQ_SET_ACTION_UNMASK:
 			/* XXX Need masking support exported */
+			func = vfio_pci_control_msix_unmask;
 			break;
 		case VFIO_IRQ_SET_ACTION_TRIGGER:
 			func = vfio_pci_set_msi_trigger;

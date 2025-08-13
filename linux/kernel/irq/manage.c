@@ -2742,6 +2742,20 @@ return retval;
 }
 EXPORT_SYMBOL(request_threaded_irq_uintr);
 
+void remove_to_open_uintr(struct irq_data* irq_data){
+	int ret;
+	struct cpumask *mask;
+	mask = kzalloc(cpumask_size(), GFP_KERNEL);
+	if (mask)
+		cpumask_set_cpu(smp_processor_id(), mask);
+	ret = irq_do_set_affinity(irq_data, mask, false);
+	kfree(mask);
+	if(ret == -EBUSY){
+		pr_err("irq_do_set_affinity failed with -EBUSY\n");
+	}
+}
+EXPORT_SYMBOL(remove_to_open_uintr);
+
 /**
  *	request_any_context_irq - allocate an interrupt line
  *	@irq: Interrupt line to allocate

@@ -189,12 +189,14 @@ static inline void pci_write_msg_msi(struct pci_dev *dev, struct msi_desc *desc,
 
 	pci_read_config_word(dev, pos + PCI_MSI_FLAGS, &msgctl);
 	msgctl &= ~PCI_MSI_FLAGS_QSIZE;
-	msgctl |= FIELD_PREP(PCI_MSI_FLAGS_QSIZE, desc->pci.msi_attrib.multiple);
+	msgctl |=
+		FIELD_PREP(PCI_MSI_FLAGS_QSIZE, desc->pci.msi_attrib.multiple);
 	pci_write_config_word(dev, pos + PCI_MSI_FLAGS, msgctl);
 
 	pci_write_config_dword(dev, pos + PCI_MSI_ADDRESS_LO, msg->address_lo);
 	if (desc->pci.msi_attrib.is_64) {
-		pci_write_config_dword(dev, pos + PCI_MSI_ADDRESS_HI,  msg->address_hi);
+		pci_write_config_dword(dev, pos + PCI_MSI_ADDRESS_HI,
+				       msg->address_hi);
 		pci_write_config_word(dev, pos + PCI_MSI_DATA_64, msg->data);
 	} else {
 		pci_write_config_word(dev, pos + PCI_MSI_DATA_32, msg->data);
@@ -203,7 +205,8 @@ static inline void pci_write_msg_msi(struct pci_dev *dev, struct msi_desc *desc,
 	pci_read_config_word(dev, pos + PCI_MSI_FLAGS, &msgctl);
 }
 
-static inline void pci_write_msg_msix(struct msi_desc *desc, struct msi_msg *msg)
+static inline void pci_write_msg_msix(struct msi_desc *desc,
+				      struct msi_msg *msg)
 {
 	void __iomem *base = pci_msix_desc_addr(desc);
 	u32 ctrl = desc->pci.msix_ctrl;
@@ -220,7 +223,8 @@ static inline void pci_write_msg_msix(struct msi_desc *desc, struct msi_msg *msg
 	 * undefined."
 	 */
 	if (unmasked)
-		pci_msix_write_vector_ctrl(desc, ctrl | PCI_MSIX_ENTRY_CTRL_MASKBIT);
+		pci_msix_write_vector_ctrl(desc,
+					   ctrl | PCI_MSIX_ENTRY_CTRL_MASKBIT);
 
 	writel(msg->address_lo, base + PCI_MSIX_ENTRY_LOWER_ADDR);
 	writel(msg->address_hi, base + PCI_MSIX_ENTRY_UPPER_ADDR);
@@ -259,6 +263,41 @@ void pci_write_msi_msg(unsigned int irq, struct msi_msg *msg)
 }
 EXPORT_SYMBOL_GPL(pci_write_msi_msg);
 
+void pci_mask_msix(unsigned int irq)
+{
+	struct msi_desc *entry = irq_get_msi_desc(irq);
+	struct pci_dev *dev = msi_desc_to_pci_dev(entry);
+
+	if (dev->current_state != PCI_D0 || pci_dev_is_disconnected(dev)) {
+		/* Don't touch the hardware now */
+	} else if (entry->pci.msi_attrib.is_msix) {
+		u32 ctrl = entry->pci.msix_ctrl;
+		ctrl |= PCI_MSIX_ENTRY_CTRL_MASKBIT;
+		pci_msix_write_vector_ctrl(entry, ctrl);
+	} else {
+		/* Don't touch the hardware now */
+		pr_err("pci_mask_msix: device is not supoorted\n");
+	}
+}
+EXPORT_SYMBOL_GPL(pci_mask_msix);
+
+void pci_unmask_msix(unsigned int irq)
+{
+	struct msi_desc *entry = irq_get_msi_desc(irq);
+	struct pci_dev *dev = msi_desc_to_pci_dev(entry);
+
+	if (dev->current_state != PCI_D0 || pci_dev_is_disconnected(dev)) {
+		/* Don't touch the hardware now */
+	} else if (entry->pci.msi_attrib.is_msix) {
+		u32 ctrl = entry->pci.msix_ctrl;
+		ctrl &= ~PCI_MSIX_ENTRY_CTRL_MASKBIT;
+		pci_msix_write_vector_ctrl(entry, ctrl);
+	} else {
+		/* Don't touch the hardware now */
+		pr_err("pci_unmask_msix: device is not supoorted\n");
+	}
+}
+EXPORT_SYMBOL_GPL(pci_unmask_msix);
 
 /* PCI/MSI specific functionality */
 
@@ -296,13 +335,13 @@ static int msi_setup_msi_desc(struct pci_dev *dev, int nvec,
 	if (pci_msi_ignore_mask)
 		control &= ~PCI_MSI_FLAGS_MASKBIT;
 
-	desc.nvec_used			= nvec;
-	desc.pci.msi_attrib.is_64	= !!(control & PCI_MSI_FLAGS_64BIT);
-	desc.pci.msi_attrib.can_mask	= !!(control & PCI_MSI_FLAGS_MASKBIT);
-	desc.pci.msi_attrib.default_irq	= dev->irq;
-	desc.pci.msi_attrib.multi_cap	= FIELD_GET(PCI_MSI_FLAGS_QMASK, control);
-	desc.pci.msi_attrib.multiple	= ilog2(__roundup_pow_of_two(nvec));
-	desc.affinity			= masks;
+	desc.nvec_used = nvec;
+	desc.pci.msi_attrib.is_64 = !!(control & PCI_MSI_FLAGS_64BIT);
+	desc.pci.msi_attrib.can_mask = !!(control & PCI_MSI_FLAGS_MASKBIT);
+	desc.pci.msi_attrib.default_irq = dev->irq;
+	desc.pci.msi_attrib.multi_cap = FIELD_GET(PCI_MSI_FLAGS_QMASK, control);
+	desc.pci.msi_attrib.multiple = ilog2(__roundup_pow_of_two(nvec));
+	desc.affinity = masks;
 
 	if (control & PCI_MSI_FLAGS_64BIT)
 		desc.pci.mask_pos = dev->msi_cap + PCI_MSI_MASK_64;
@@ -311,7 +350,8 @@ static int msi_setup_msi_desc(struct pci_dev *dev, int nvec,
 
 	/* Save the initial mask status */
 	if (desc.pci.msi_attrib.can_mask)
-		pci_read_config_dword(dev, desc.pci.mask_pos, &desc.pci.msi_mask);
+		pci_read_config_dword(dev, desc.pci.mask_pos,
+				      &desc.pci.msi_mask);
 
 	return msi_insert_msi_desc(&dev->dev, &desc);
 }
@@ -325,7 +365,8 @@ static int msi_verify_entries(struct pci_dev *dev)
 
 	msi_for_each_desc(entry, &dev->dev, MSI_DESC_ALL) {
 		if (entry->msg.address_hi) {
-			pci_err(dev, "arch assigned 64-bit MSI address %#x%08x but device only supports 32 bits\n",
+			pci_err(dev,
+				"arch assigned 64-bit MSI address %#x%08x but device only supports 32 bits\n",
 				entry->msg.address_hi, entry->msg.address_lo);
 			break;
 		}
@@ -353,7 +394,8 @@ static int msi_capability_init(struct pci_dev *dev, int nvec,
 	int ret;
 
 	/* Reject multi-MSI early on irq domain enabled architectures */
-	if (nvec > 1 && !pci_msi_domain_supports(dev, MSI_FLAG_MULTI_PCI_MSI, ALLOW_LEGACY))
+	if (nvec > 1 &&
+	    !pci_msi_domain_supports(dev, MSI_FLAG_MULTI_PCI_MSI, ALLOW_LEGACY))
 		return 1;
 
 	/*
@@ -512,8 +554,9 @@ void __pci_restore_msi_state(struct pci_dev *dev)
 	pci_read_config_word(dev, dev->msi_cap + PCI_MSI_FLAGS, &control);
 	pci_msi_update_mask(entry, 0, 0);
 	control &= ~PCI_MSI_FLAGS_QSIZE;
-	control |= PCI_MSI_FLAGS_ENABLE |
-		   FIELD_PREP(PCI_MSI_FLAGS_QSIZE, entry->pci.msi_attrib.multiple);
+	control |=
+		PCI_MSI_FLAGS_ENABLE |
+		FIELD_PREP(PCI_MSI_FLAGS_QSIZE, entry->pci.msi_attrib.multiple);
 	pci_write_config_word(dev, dev->msi_cap + PCI_MSI_FLAGS, control);
 }
 
@@ -591,13 +634,13 @@ static void __iomem *msix_map_region(struct pci_dev *dev,
  */
 void msix_prepare_msi_desc(struct pci_dev *dev, struct msi_desc *desc)
 {
-	desc->nvec_used				= 1;
-	desc->pci.msi_attrib.is_msix		= 1;
-	desc->pci.msi_attrib.is_64		= 1;
-	desc->pci.msi_attrib.default_irq	= dev->irq;
-	desc->pci.mask_base			= dev->msix_base;
-	desc->pci.msi_attrib.can_mask		= !pci_msi_ignore_mask &&
-						  !desc->pci.msi_attrib.is_virtual;
+	desc->nvec_used = 1;
+	desc->pci.msi_attrib.is_msix = 1;
+	desc->pci.msi_attrib.is_64 = 1;
+	desc->pci.msi_attrib.default_irq = dev->irq;
+	desc->pci.mask_base = dev->msix_base;
+	desc->pci.msi_attrib.can_mask = !pci_msi_ignore_mask &&
+					!desc->pci.msi_attrib.is_virtual;
 
 	if (desc->pci.msi_attrib.can_mask) {
 		void __iomem *addr = pci_msix_desc_addr(desc);
@@ -653,8 +696,9 @@ static void msix_mask_all(void __iomem *base, int tsize)
 		writel(ctrl, base + PCI_MSIX_ENTRY_VECTOR_CTRL);
 }
 
-static int msix_setup_interrupts(struct pci_dev *dev, struct msix_entry *entries,
-				 int nvec, struct irq_affinity *affd)
+static int msix_setup_interrupts(struct pci_dev *dev,
+				 struct msix_entry *entries, int nvec,
+				 struct irq_affinity *affd)
 {
 	struct irq_affinity_desc *masks = NULL;
 	int ret;
@@ -709,8 +753,8 @@ static int msix_capability_init(struct pci_dev *dev, struct msix_entry *entries,
 	 * registers can be accessed.  Mask all the vectors to prevent
 	 * interrupts coming in before they're fully set up.
 	 */
-	pci_msix_clear_and_set_ctrl(dev, 0, PCI_MSIX_FLAGS_MASKALL |
-				    PCI_MSIX_FLAGS_ENABLE);
+	pci_msix_clear_and_set_ctrl(
+		dev, 0, PCI_MSIX_FLAGS_MASKALL | PCI_MSIX_FLAGS_ENABLE);
 
 	/* Mark it enabled so setup functions can query it */
 	dev->msix_enabled = 1;
@@ -747,12 +791,14 @@ static int msix_capability_init(struct pci_dev *dev, struct msix_entry *entries,
 
 out_disable:
 	dev->msix_enabled = 0;
-	pci_msix_clear_and_set_ctrl(dev, PCI_MSIX_FLAGS_MASKALL | PCI_MSIX_FLAGS_ENABLE, 0);
+	pci_msix_clear_and_set_ctrl(
+		dev, PCI_MSIX_FLAGS_MASKALL | PCI_MSIX_FLAGS_ENABLE, 0);
 
 	return ret;
 }
 
-static bool pci_msix_validate_entries(struct pci_dev *dev, struct msix_entry *entries, int nvec)
+static bool pci_msix_validate_entries(struct pci_dev *dev,
+				      struct msix_entry *entries, int nvec)
 {
 	bool nogap;
 	int i, j;
@@ -760,7 +806,8 @@ static bool pci_msix_validate_entries(struct pci_dev *dev, struct msix_entry *en
 	if (!entries)
 		return true;
 
-	nogap = pci_msi_domain_supports(dev, MSI_FLAG_MSIX_CONTIGUOUS, DENY_LEGACY);
+	nogap = pci_msi_domain_supports(dev, MSI_FLAG_MSIX_CONTIGUOUS,
+					DENY_LEGACY);
 
 	for (i = 0; i < nvec; i++) {
 		/* Check for duplicate entries */
@@ -775,8 +822,9 @@ static bool pci_msix_validate_entries(struct pci_dev *dev, struct msix_entry *en
 	return true;
 }
 
-int __pci_enable_msix_range(struct pci_dev *dev, struct msix_entry *entries, int minvec,
-			    int maxvec, struct irq_affinity *affd, int flags)
+int __pci_enable_msix_range(struct pci_dev *dev, struct msix_entry *entries,
+			    int minvec, int maxvec, struct irq_affinity *affd,
+			    int flags)
 {
 	int hwsize, rc, nvec = maxvec;
 
@@ -853,8 +901,8 @@ void __pci_restore_msix_state(struct pci_dev *dev)
 
 	/* route the table */
 	pci_intx_for_msi(dev, 0);
-	pci_msix_clear_and_set_ctrl(dev, 0,
-				PCI_MSIX_FLAGS_ENABLE | PCI_MSIX_FLAGS_MASKALL);
+	pci_msix_clear_and_set_ctrl(
+		dev, 0, PCI_MSIX_FLAGS_ENABLE | PCI_MSIX_FLAGS_MASKALL);
 
 	write_msg = arch_restore_msi_irqs(dev);
 

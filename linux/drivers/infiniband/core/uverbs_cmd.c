@@ -974,7 +974,7 @@ static int ib_uverbs_dealloc_mw(struct uverbs_attr_bundle *attrs)
 
 	return uobj_perform_destroy(UVERBS_OBJECT_MW, cmd.mw_handle, attrs);
 }
-
+/* rdma-irq 关键初始化函数 */
 static int ib_uverbs_create_comp_channel(struct uverbs_attr_bundle *attrs)
 {
 	struct ib_uverbs_create_comp_channel	   cmd;

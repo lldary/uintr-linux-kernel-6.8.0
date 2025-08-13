@@ -24,8 +24,7 @@ enum {
 	IO_SQ_THREAD_SHOULD_PARK,
 };
 
-void io_sq_thread_unpark(struct io_sq_data *sqd)
-	__releases(&sqd->lock)
+void io_sq_thread_unpark(struct io_sq_data *sqd) __releases(&sqd->lock)
 {
 	WARN_ON_ONCE(sqd->thread == current);
 
@@ -39,8 +38,7 @@ void io_sq_thread_unpark(struct io_sq_data *sqd)
 	mutex_unlock(&sqd->lock);
 }
 
-void io_sq_thread_park(struct io_sq_data *sqd)
-	__acquires(&sqd->lock)
+void io_sq_thread_park(struct io_sq_data *sqd) __acquires(&sqd->lock)
 {
 	WARN_ON_ONCE(sqd->thread == current);
 
@@ -218,7 +216,7 @@ static bool io_sqd_handle_event(struct io_sq_data *sqd)
 	}
 	return did_sig || test_bit(IO_SQ_THREAD_SHOULD_STOP, &sqd->state);
 }
-
+/* io_uring 的 SQPOLL（Submission Queue Polling）线程 */
 static int io_sq_thread(void *data)
 {
 	struct io_sq_data *sqd = data;
@@ -254,7 +252,8 @@ static int io_sq_thread(void *data)
 		list_for_each_entry(ctx, &sqd->ctx_list, sqd_list) {
 			int ret = __io_sq_thread(ctx, cap_entries);
 
-			if (!sqt_spin && (ret > 0 || !wq_list_empty(&ctx->iopoll_list)))
+			if (!sqt_spin &&
+			    (ret > 0 || !wq_list_empty(&ctx->iopoll_list)))
 				sqt_spin = true;
 		}
 		if (io_run_task_work())
@@ -273,12 +272,13 @@ static int io_sq_thread(void *data)
 		}
 
 		prepare_to_wait(&sqd->wait, &wait, TASK_INTERRUPTIBLE);
-		if (!io_sqd_events_pending(sqd) && !task_work_pending(current)) {
+		if (!io_sqd_events_pending(sqd) &&
+		    !task_work_pending(current)) {
 			bool needs_sched = true;
 
 			list_for_each_entry(ctx, &sqd->ctx_list, sqd_list) {
 				atomic_or(IORING_SQ_NEED_WAKEUP,
-						&ctx->rings->sq_flags);
+					  &ctx->rings->sq_flags);
 				if ((ctx->flags & IORING_SETUP_IOPOLL) &&
 				    !wq_list_empty(&ctx->iopoll_list)) {
 					needs_sched = false;
@@ -305,7 +305,7 @@ static int io_sq_thread(void *data)
 			}
 			list_for_each_entry(ctx, &sqd->ctx_list, sqd_list)
 				atomic_andnot(IORING_SQ_NEED_WAKEUP,
-						&ctx->rings->sq_flags);
+					      &ctx->rings->sq_flags);
 		}
 
 		finish_wait(&sqd->wait, &wait);
@@ -339,7 +339,7 @@ void io_sqpoll_wait_sq(struct io_ring_ctx *ctx)
 
 	finish_wait(&ctx->sqo_sq_wait, &wait);
 }
-
+/* 用于初始化和创建 io_uring 的 SQPOLL（Submission Queue Polling）线程 */
 __cold int io_sq_offload_create(struct io_ring_ctx *ctx,
 				struct io_uring_params *p)
 {
@@ -347,7 +347,7 @@ __cold int io_sq_offload_create(struct io_ring_ctx *ctx,
 
 	/* Retain compatibility with failing for an invalid attach attempt */
 	if ((ctx->flags & (IORING_SETUP_ATTACH_WQ | IORING_SETUP_SQPOLL)) ==
-				IORING_SETUP_ATTACH_WQ) {
+	    IORING_SETUP_ATTACH_WQ) {
 		struct fd f;
 
 		f = fdget(p->wq_fd);

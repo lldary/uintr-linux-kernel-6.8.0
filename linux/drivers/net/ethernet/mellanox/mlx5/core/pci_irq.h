@@ -33,7 +33,7 @@ static inline bool mlx5_irq_pool_is_sf_pool(struct mlx5_irq_pool *pool)
 {
 	return !strncmp("mlx5_sf", pool->name, strlen("mlx5_sf"));
 }
-
+struct irq_data* mlx5_get_irq_data(const struct mlx5_irq* irq);
 struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
 				struct irq_affinity_desc *af_desc,
 				struct cpu_rmap **rmap);

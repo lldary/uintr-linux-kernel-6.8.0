@@ -512,6 +512,7 @@ struct irq_chip {
 	void		(*irq_eoi)(struct irq_data *data);
 
 	int		(*irq_set_affinity)(struct irq_data *data, const struct cpumask *dest, bool force);
+	int		(*irq_set_affinity_uintr)(struct irq_data *data, const struct cpumask *dest, bool force);
 	int		(*irq_retrigger)(struct irq_data *data);
 	int		(*irq_set_type)(struct irq_data *data, unsigned int flow_type);
 	int		(*irq_set_wake)(struct irq_data *data, unsigned int on);
@@ -627,10 +628,12 @@ static inline void irq_move_irq(struct irq_data *data)
 		__irq_move_irq(data);
 }
 void irq_move_masked_irq(struct irq_data *data);
+void remove_to_open_uintr(struct irq_data* irq_data);
 void irq_force_complete_move(struct irq_desc *desc);
 #else
 static inline void irq_move_irq(struct irq_data *data) { }
 static inline void irq_move_masked_irq(struct irq_data *data) { }
+void remove_to_open_uintr(struct irq_data* irq_data) {}
 static inline void irq_force_complete_move(struct irq_desc *desc) { }
 #endif
 

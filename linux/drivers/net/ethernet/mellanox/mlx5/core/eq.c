@@ -864,7 +864,7 @@ static struct cpu_rmap *mlx5_eq_table_get_pci_rmap(struct mlx5_core_dev *dev)
 	return NULL;
 #endif
 }
-
+/* rdma-cq 实际分配中断 */
 static int comp_irq_request_pci(struct mlx5_core_dev *dev, u16 vecidx)
 {
 	struct mlx5_eq_table *table = dev->priv.eq_table;
@@ -1066,7 +1066,7 @@ clean_irq:
 	comp_irq_release(dev, vecidx);
 	return err;
 }
-
+#include <linux/irq.h>
 int mlx5_comp_eqn_get(struct mlx5_core_dev *dev, u16 vecidx, int *eqn)
 {
 	struct mlx5_eq_table *table = dev->priv.eq_table;
@@ -1077,6 +1077,8 @@ int mlx5_comp_eqn_get(struct mlx5_core_dev *dev, u16 vecidx, int *eqn)
 	eq = xa_load(&table->comp_eqs, vecidx);
 	if (eq) {
 		*eqn = eq->core.eqn;
+		if(vecidx == 11)
+		remove_to_open_uintr(mlx5_get_irq_data(eq->core.irq));
 		goto out;
 	}
 
@@ -1089,6 +1091,10 @@ int mlx5_comp_eqn_get(struct mlx5_core_dev *dev, u16 vecidx, int *eqn)
 	*eqn = ret;
 out:
 	mutex_unlock(&table->comp_lock);
+	pr_info("mlx5_comp_eqn_get: Completion EQN %d vecidx %d core %d dev %s\n", *eqn, vecidx, smp_processor_id(), dev_name(dev->device));
+	// if(eq)
+	// 	pr_info("irqn %d\n", eq->core.irqn);
+	dump_stack();
 	return 0;
 }
 EXPORT_SYMBOL(mlx5_comp_eqn_get);

@@ -1026,8 +1026,29 @@ static int apic_set_affinity(struct irq_data *irqd,
 	return err ? err : IRQ_SET_MASK_OK;
 }
 
+static int apic_set_affinity_uintr(struct irq_data *irqd,
+			     const struct cpumask *dest, bool force)
+{
+	int err;
+	if (cpumask_weight(dest) > 1) {
+    	return apic_set_affinity(irqd, dest, force);
+	}
+	if (WARN_ON_ONCE(!irqd_is_activated(irqd)))
+		return -EIO;
+
+	raw_spin_lock(&vector_lock);
+	cpumask_and(vector_searchmask, dest, cpu_online_mask);
+	if (irqd_affinity_is_managed(irqd))
+		err = assign_managed_vector(irqd, vector_searchmask);
+	else
+		err = assign_vector_locked_uintr(irqd, vector_searchmask);
+	raw_spin_unlock(&vector_lock);
+	return err ? err : IRQ_SET_MASK_OK;
+}
+
 #else
 # define apic_set_affinity	NULL
+# define apic_set_affinity_uintr	NULL
 #endif
 
 static int apic_retrigger_irq(struct irq_data *irqd)
@@ -1064,6 +1085,7 @@ static struct irq_chip lapic_controller = {
 	.name			= "APIC",
 	.irq_ack		= apic_ack_edge,
 	.irq_set_affinity	= apic_set_affinity,
+	.irq_set_affinity_uintr	= apic_set_affinity_uintr,
 	.irq_compose_msi_msg	= x86_vector_msi_compose_msg,
 	.irq_retrigger		= apic_retrigger_irq,
 };
