@@ -1167,8 +1167,34 @@ intel_ir_set_affinity(struct irq_data *data, const struct cpumask *mask,
 	struct irq_data *parent = data->parent_data;
 	struct irq_cfg *cfg = irqd_cfg(data);
 	int ret;
-
+	pr_info("parent chip name: %s\n", parent->chip->name);
 	ret = parent->chip->irq_set_affinity(parent, mask, force);
+	if (ret < 0 || ret == IRQ_SET_MASK_OK_DONE)
+		return ret;
+
+	intel_ir_reconfigure_irte(data, false);
+	/*
+	 * After this point, all the interrupts will start arriving
+	 * at the new destination. So, time to cleanup the previous
+	 * vector allocation.
+	 */
+	vector_schedule_cleanup(cfg);
+
+	return IRQ_SET_MASK_OK_DONE;
+}
+
+static int
+intel_ir_set_affinity_uintr(struct irq_data *data, const struct cpumask *mask,
+		      bool force)
+{
+	struct irq_data *parent = data->parent_data;
+	struct irq_cfg *cfg = irqd_cfg(data);
+	int ret;
+	pr_info("parent chip name: %s\n", parent->chip->name);
+	if (parent->chip->irq_set_affinity_uintr)
+		ret = parent->chip->irq_set_affinity_uintr(parent, mask, force);
+	else
+		ret = parent->chip->irq_set_affinity(parent, mask, force);
 	if (ret < 0 || ret == IRQ_SET_MASK_OK_DONE)
 		return ret;
 
@@ -1231,6 +1257,7 @@ static struct irq_chip intel_ir_chip = {
 	.name			= "INTEL-IR",
 	.irq_ack		= apic_ack_irq,
 	.irq_set_affinity	= intel_ir_set_affinity,
+	.irq_set_affinity_uintr	= intel_ir_set_affinity_uintr,
 	.irq_compose_msi_msg	= intel_ir_compose_msi_msg,
 	.irq_set_vcpu_affinity	= intel_ir_set_vcpu_affinity,
 };

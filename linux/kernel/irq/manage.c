@@ -292,6 +292,91 @@ int irq_do_set_affinity(struct irq_data *data, const struct cpumask *mask,
 	return ret;
 }
 
+int irq_do_set_affinity_uintr(struct irq_data *data, const struct cpumask *mask,
+			bool force)
+{
+	struct irq_desc *desc = irq_data_to_desc(data);
+	struct irq_chip *chip = irq_data_get_irq_chip(data);
+	const struct cpumask  *prog_mask;
+	int ret;
+
+	static DEFINE_RAW_SPINLOCK(tmp_mask_lock);
+	static struct cpumask tmp_mask;
+
+	if (!chip || !chip->irq_set_affinity)
+		return -EINVAL;
+
+	raw_spin_lock(&tmp_mask_lock);
+	/*
+	 * If this is a managed interrupt and housekeeping is enabled on
+	 * it check whether the requested affinity mask intersects with
+	 * a housekeeping CPU. If so, then remove the isolated CPUs from
+	 * the mask and just keep the housekeeping CPU(s). This prevents
+	 * the affinity setter from routing the interrupt to an isolated
+	 * CPU to avoid that I/O submitted from a housekeeping CPU causes
+	 * interrupts on an isolated one.
+	 *
+	 * If the masks do not intersect or include online CPU(s) then
+	 * keep the requested mask. The isolated target CPUs are only
+	 * receiving interrupts when the I/O operation was submitted
+	 * directly from them.
+	 *
+	 * If all housekeeping CPUs in the affinity mask are offline, the
+	 * interrupt will be migrated by the CPU hotplug code once a
+	 * housekeeping CPU which belongs to the affinity mask comes
+	 * online.
+	 */
+	if (irqd_affinity_is_managed(data) &&
+	    housekeeping_enabled(HK_TYPE_MANAGED_IRQ)) {
+		const struct cpumask *hk_mask;
+
+		hk_mask = housekeeping_cpumask(HK_TYPE_MANAGED_IRQ);
+
+		cpumask_and(&tmp_mask, mask, hk_mask);
+		if (!cpumask_intersects(&tmp_mask, cpu_online_mask))
+			prog_mask = mask;
+		else
+			prog_mask = &tmp_mask;
+	} else {
+		prog_mask = mask;
+	}
+	pr_info("Requested IRQ affinity change for IRQ %u: chip name: %s\n",
+		data->irq, chip->name);
+	/*
+	 * Make sure we only provide online CPUs to the irqchip,
+	 * unless we are being asked to force the affinity (in which
+	 * case we do as we are told).
+	 */
+	cpumask_and(&tmp_mask, prog_mask, cpu_online_mask);
+	if(chip->irq_set_affinity_uintr == NULL) {
+		pr_err("irq_set_affinity_uintr is not implemented for chip %s\n",
+		       chip->name);
+		raw_spin_unlock(&tmp_mask_lock);
+		return -ENOSYS;
+	}
+	if (!force && !cpumask_empty(&tmp_mask))
+		ret = chip->irq_set_affinity_uintr(data, &tmp_mask, force);
+	else if (force)
+		ret = chip->irq_set_affinity_uintr(data, mask, force);
+	else
+		ret = -EINVAL;
+
+	raw_spin_unlock(&tmp_mask_lock);
+
+	switch (ret) {
+	case IRQ_SET_MASK_OK:
+	case IRQ_SET_MASK_OK_DONE:
+		cpumask_copy(desc->irq_common_data.affinity, mask);
+		fallthrough;
+	case IRQ_SET_MASK_OK_NOCOPY:
+		irq_validate_effective_affinity(data);
+		irq_set_thread_affinity(desc);
+		ret = 0;
+	}
+
+	return ret;
+}
+
 #ifdef CONFIG_GENERIC_PENDING_IRQ
 static inline int irq_set_affinity_pending(struct irq_data *data,
 					   const struct cpumask *dest)
@@ -2744,12 +2829,11 @@ EXPORT_SYMBOL(request_threaded_irq_uintr);
 
 void remove_to_open_uintr(struct irq_data* irq_data){
 	int ret;
-	struct cpumask *mask;
-	mask = kzalloc(cpumask_size(), GFP_KERNEL);
-	if (mask)
-		cpumask_set_cpu(smp_processor_id(), mask);
-	ret = irq_do_set_affinity(irq_data, mask, false);
-	kfree(mask);
+	struct cpumask cpu_mask;
+
+	cpumask_clear(&cpu_mask);
+	cpumask_set_cpu(0, &cpu_mask);
+	irq_do_set_affinity_uintr(irq_data, &cpu_mask, false);
 	if(ret == -EBUSY){
 		pr_err("irq_do_set_affinity failed with -EBUSY\n");
 	}

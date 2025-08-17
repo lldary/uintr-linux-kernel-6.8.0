@@ -1004,8 +1004,8 @@ static int do_uintr_register_handler(u64 handler, unsigned int flags)
 	}
 
 	set_bit(UINTR_UPID_STATUS_SN, (unsigned long *)&upid->nc.status);
-	pr_info("recv: task=%d registered handler=%llx upid %px flags=%d cpu=%d\n",
-		t->pid, handler, upid, flags, smp_processor_id());
+	pr_info("recv: task=%d registered handler=%llx upid %px flags=%d cpu=%d ndst=%d  apic=%p\n",
+		t->pid, handler, upid, flags, smp_processor_id(), upid->nc.ndst, apic);
 
 	pr_debug("recv: task=%d register handler=%llx upid %px flags=%d\n",
 		 t->pid, handler, upid, flags);
@@ -1494,8 +1494,9 @@ void switch_uintr_return(void)
 	 * the UIRR. In that case the kernel would need to carefully manage the
 	 * race with the hardware if the UPID gets updated after the read.
 	 */
-	// if (READ_ONCE(upid->puir))
+	// if (READ_ONCE(upid->puir) && current->thread.upid_ctx->kernel_notify)
 	// 	apic->send_IPI_self(UINTR_NOTIFICATION_VECTOR);
+	current->thread.upid_ctx->kernel_notify = false;
 }
 
 /* Check does SN need to be set here */
@@ -1629,6 +1630,7 @@ void uintr_wake_up_process(void)
 			/* Check if a locked access is needed for NV and NDST bits of the UPID */
 			upid_ctx->upid->nc.nv = UINTR_NOTIFICATION_VECTOR;
 			upid_ctx->waiting = false;
+			upid_ctx->kernel_notify = true;
 			set_tsk_thread_flag(upid_ctx->task, TIF_NOTIFY_SIGNAL);
 			wake_up_process(upid_ctx->task);
 			list_del(&upid_ctx->node);

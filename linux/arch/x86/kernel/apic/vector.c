@@ -148,6 +148,7 @@ lockdep_assert_held(&vector_lock);
 cpu = smp_processor_id();
 apicd->hw_irq_cfg.vector = UINTR_MSIX_VECTOR;
 apicd->hw_irq_cfg.dest_apicid = apic->calc_dest_apicid(cpu);
+pr_info("uintr vector = %d cpu = %d\n", apicd->hw_irq_cfg.vector, cpu);
 irq_data_update_effective_affinity(irqd, cpumask_of(cpu));
 trace_vector_config(irqd->irq, vector, cpu,
 	apicd->hw_irq_cfg.dest_apicid);
@@ -309,7 +310,7 @@ assign_vector_locked_uintr(struct irq_data *irqd, const struct cpumask *dest)
 		return -EBUSY;
 
 	vector = irq_matrix_alloc(vector_matrix, dest, resvd, &cpu);
-	pr_info("uintr vector = %d cpu = %d\n", vector, cpu);
+	// pr_info("uintr vector = %d cpu = %d\n", vector, cpu);
 	trace_vector_alloc(irqd->irq, vector, resvd, vector);
 	if (vector < 0)
 		return vector;
@@ -1031,8 +1032,10 @@ static int apic_set_affinity_uintr(struct irq_data *irqd,
 {
 	int err;
 	if (cpumask_weight(dest) > 1) {
+		pr_err("uintr affinity can only be set to single cpu\n");
     	return apic_set_affinity(irqd, dest, force);
 	}
+	pr_info("uintr set affinity to cpu%d\n", cpumask_first(dest));
 	if (WARN_ON_ONCE(!irqd_is_activated(irqd)))
 		return -EIO;
 

@@ -652,8 +652,28 @@ int msi_domain_set_affinity(struct irq_data *irq_data,
 	struct irq_data *parent = irq_data->parent_data;
 	struct msi_msg msg[2] = { [1] = { }, };
 	int ret;
-
+	pr_info("parent chip name %s\n", parent->chip->name);
 	ret = parent->chip->irq_set_affinity(parent, mask, force);
+	if (ret >= 0 && ret != IRQ_SET_MASK_OK_DONE) {
+		BUG_ON(irq_chip_compose_msi_msg(irq_data, msg));
+		msi_check_level(irq_data->domain, msg);
+		irq_chip_write_msi_msg(irq_data, msg);
+	}
+
+	return ret;
+}
+
+int msi_domain_set_affinity_uintr(struct irq_data *irq_data,
+			    const struct cpumask *mask, bool force)
+{
+	struct irq_data *parent = irq_data->parent_data;
+	struct msi_msg msg[2] = { [1] = { }, };
+	int ret;
+	pr_info("parent chip name %s\n", parent->chip->name);
+	if(parent->chip->irq_set_affinity_uintr)
+		ret = parent->chip->irq_set_affinity_uintr(parent, mask, force);
+	else
+		ret = parent->chip->irq_set_affinity(parent, mask, force);
 	if (ret >= 0 && ret != IRQ_SET_MASK_OK_DONE) {
 		BUG_ON(irq_chip_compose_msi_msg(irq_data, msg));
 		msi_check_level(irq_data->domain, msg);
@@ -805,6 +825,7 @@ static void msi_domain_update_chip_ops(struct msi_domain_info *info)
 	BUG_ON(!chip || !chip->irq_mask || !chip->irq_unmask);
 	if (!chip->irq_set_affinity)
 		chip->irq_set_affinity = msi_domain_set_affinity;
+	chip->irq_set_affinity_uintr = msi_domain_set_affinity_uintr;
 }
 
 static struct irq_domain *__msi_create_irq_domain(struct fwnode_handle *fwnode,

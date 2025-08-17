@@ -222,9 +222,27 @@ static int irq_get(struct mlx5_irq *irq)
 	return err;
 }
 
+#include <asm/apic.h> // Add this include at the top of the file if not present
 static irqreturn_t irq_int_handler(int irq, void *nh)
 {
+	// apic->send_UINTR((u32)(apic->cpu_present_to_apicid(0)), UINTR_KERNEL_VECTOR);
+	apic->send_UINTR((u32)(apic->cpu_present_to_apicid(0)), UINTR_MSIX_VECTOR);
 	atomic_notifier_call_chain(nh, 0, NULL);
+	apic->send_UINTR((u32)(apic->cpu_present_to_apicid(0)), UINTR_MSIX_VECTOR);
+	static int32_t count = 0;
+	count++;
+	if(count % 50000 == 0)
+		pr_info("mlx5_irq_int_handler: irq=%d apic %p\n", irq, apic);
+	static void* store = 0;
+	static bool first_init = true;
+	if(first_init){
+		store = apic;
+		first_init = false;
+	}
+	if(apic != store){
+		pr_info("mlx5_irq_int_handler: apic changed from %p to %p\n", store, apic);
+		store = apic;
+	}
 	return IRQ_HANDLED;
 }
 

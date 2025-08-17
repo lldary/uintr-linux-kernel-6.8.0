@@ -31,6 +31,7 @@ struct uintr_upid_ctx {
 	refcount_t refs;
 	bool receiver_active;		/* Flag for UPID being mapped to a receiver */
 	bool waiting;			/* Flag for UPID blocked in the kernel */
+	bool kernel_notify;
 	unsigned int waiting_cost;	/* Flags for who pays the waiting cost */
 };
 

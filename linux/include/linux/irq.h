@@ -622,12 +622,14 @@ extern int irq_affinity_online_cpu(unsigned int cpu);
 
 #if defined(CONFIG_SMP) && defined(CONFIG_GENERIC_PENDING_IRQ)
 void __irq_move_irq(struct irq_data *data);
+void __irq_move_irq_uintr(struct irq_data *idata, int cpu);
 static inline void irq_move_irq(struct irq_data *data)
 {
 	if (unlikely(irqd_is_setaffinity_pending(data)))
 		__irq_move_irq(data);
 }
 void irq_move_masked_irq(struct irq_data *data);
+void irq_move_masked_irq_uintr(struct irq_data *idata, int cpu);
 void remove_to_open_uintr(struct irq_data* irq_data);
 void irq_force_complete_move(struct irq_desc *desc);
 #else
